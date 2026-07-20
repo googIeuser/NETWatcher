@@ -1,4 +1,4 @@
-# NetWatcher 2.1.0 Test Report
+# NetWatcher 2.1.3 Test Report
 
 Date: 2026-07-20
 
@@ -14,7 +14,12 @@ Date: 2026-07-20
 - HTML statistics-page generation test passed.
 - ZIP log-export test passed and produced a non-empty archive.
 - Existing installer state, startup policy, and wizard model tests passed.
+- A source-level regression test confirms the dashboard no longer creates or reads interval/timeout controls and the Start button uses both saved Settings values.
+- The report-theme regression test confirms the blue gradient, responsive cards, light-mode fallback, and print styling remain present.
+- Windows `go vet -unsafeptr=false` format checks passed for the redesigned HTML report template.
 
 ## Not executable in this environment
 
 The Linux environment cannot perform real Windows interaction tests for tray notifications, taskbar behavior, startup registration, SmartScreen, Authenticode signatures, or visual layout. These must be checked on clean Windows 10 and Windows 11 virtual machines before marking the GitHub release as stable.
+
+- Custom target removal helper tests cover exact, trimmed, case-insensitive, missing, and protected-default cases.

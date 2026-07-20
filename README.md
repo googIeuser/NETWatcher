@@ -47,11 +47,11 @@ Requirements: Go 1.23 or newer and Windows 10/11 for runtime testing.
 ./scripts/build.ps1
 ```
 
-The output is written to `dist/NetWatcher_Setup_2.1.0.exe`.
+The output is written to `dist/NetWatcher_Setup_2.1.3.exe`.
 
 ## Release process
 
-Push a semantic-version tag such as `v2.1.0`. GitHub Actions tests the project, builds the Windows setup executable, optionally signs it, generates a SHA-256 checksum, and creates a GitHub Release. GitHub Releases are intended for distributing binary assets and release notes. See [docs/RELEASING.md](docs/RELEASING.md).
+Push a semantic-version tag such as `v2.1.2`. GitHub Actions tests the project, builds the Windows setup executable, optionally signs it, generates a SHA-256 checksum, and creates a GitHub Release. GitHub Releases are intended for distributing binary assets and release notes. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Contributing and security
 
