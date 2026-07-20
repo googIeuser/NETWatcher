@@ -1,0 +1,22 @@
+# Build output
+/dist/
+/release/
+*.exe
+*.zip
+*.sha256
+
+# Local signing material
+*.pfx
+*.p12
+*.cer
+*.pem
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test output
+coverage.out
+*.test
