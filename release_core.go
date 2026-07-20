@@ -39,11 +39,15 @@ func isNewerVersion(candidate, current string) bool {
 }
 
 type periodStats struct {
-	Name       string
-	Samples    int
-	Successes  int
-	LatencySum float64
-	Latencies  []float64
+	Name        string
+	Samples     int
+	Successes   int
+	LatencySum  float64
+	Latencies   []float64
+	LastLatency float64
+	HasLast     bool
+	JitterSum   float64
+	JitterPairs int
 }
 
 func (s *periodStats) add(success bool, latency float64) {
@@ -52,6 +56,16 @@ func (s *periodStats) add(success bool, latency float64) {
 		s.Successes++
 		s.LatencySum += latency
 		s.Latencies = append(s.Latencies, latency)
+		if s.HasLast {
+			delta := latency - s.LastLatency
+			if delta < 0 {
+				delta = -delta
+			}
+			s.JitterSum += delta
+			s.JitterPairs++
+		}
+		s.LastLatency = latency
+		s.HasLast = true
 	}
 }
 
@@ -75,6 +89,13 @@ func (s periodStats) p95() float64 {
 	values := append([]float64(nil), s.Latencies...)
 	sort.Float64s(values)
 	return values[int(float64(len(values)-1)*0.95)]
+}
+
+func (s periodStats) jitter() float64 {
+	if s.JitterPairs == 0 {
+		return 0
+	}
+	return s.JitterSum / float64(s.JitterPairs)
 }
 
 func readDiskStatistics(logDir string, since time.Time) (map[string]*periodStats, error) {
@@ -126,13 +147,14 @@ func statsTable(stats map[string]*periodStats) string {
 	}
 	sort.Strings(keys)
 	if len(keys) == 0 {
-		return `<tr><td colspan="7">No samples are available for this period.</td></tr>`
+		return `<tr><td colspan="9">No samples are available for this period.</td></tr>`
 	}
 	var rows strings.Builder
 	for _, key := range keys {
 		item := stats[key]
-		fmt.Fprintf(&rows, `<tr><td>%s</td><td>%d</td><td>%.3f%%</td><td>%.3f%%</td><td>%.2f ms</td><td>%.2f ms</td><td>%d</td></tr>`,
-			html.EscapeString(item.Name), item.Samples, item.uptime(), item.loss(), item.average(), item.p95(), item.Samples-item.Successes)
+		score, label := connectionQuality(RollingMetrics{Samples: item.Samples, Successes: item.Successes, Failures: item.Samples - item.Successes, PacketLoss: item.loss(), Average: item.average(), P95: item.p95(), Jitter: item.jitter()})
+		fmt.Fprintf(&rows, `<tr><td>%s</td><td>%d</td><td>%.3f%%</td><td>%.3f%%</td><td>%.2f ms</td><td>%.2f ms</td><td>%.2f ms</td><td>%s (%d)</td><td>%d</td></tr>`,
+			html.EscapeString(item.Name), item.Samples, item.uptime(), item.loss(), item.average(), item.p95(), item.jitter(), label, score, item.Samples-item.Successes)
 	}
 	return rows.String()
 }
@@ -147,7 +169,7 @@ func generateStatisticsPage(logDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	page := fmt.Sprintf(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NetWatcher Statistics</title><style>:root{color-scheme:light dark}body{font:14px/1.45 "Segoe UI",Arial,sans-serif;margin:0;background:#111820;color:#eaf0f7}.wrap{max-width:1100px;margin:auto;padding:28px}.hero{background:linear-gradient(135deg,#0b6cff,#38bdf8);padding:26px;border-radius:18px;color:white;box-shadow:0 18px 50px #0005}.card{background:#18222d;border:1px solid #2b3948;border-radius:16px;padding:18px;margin-top:18px;overflow:auto}table{width:100%%;border-collapse:collapse;min-width:720px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #2b3948}th{color:#8ec5ff}small{opacity:.8}@media(prefers-color-scheme:light){body{background:#f3f6fa;color:#18222d}.card{background:white;border-color:#d9e2ec}th,td{border-color:#e3e9ef}}</style></head><body><div class="wrap"><section class="hero"><h1>NetWatcher Statistics</h1><p>Generated %s. Statistics are calculated locally from your CSV logs; no telemetry is uploaded.</p></section><section class="card"><h2>Last 24 hours</h2><table><thead><tr><th>Target</th><th>Samples</th><th>Availability</th><th>Packet loss</th><th>Average</th><th>P95</th><th>Failures</th></tr></thead><tbody>%s</tbody></table></section><section class="card"><h2>Last 7 days</h2><table><thead><tr><th>Target</th><th>Samples</th><th>Availability</th><th>Packet loss</th><th>Average</th><th>P95</th><th>Failures</th></tr></thead><tbody>%s</tbody></table></section><p><small>Availability is the percentage of successful ping samples for each target. This is diagnostic evidence, not a contractual SLA measurement.</small></p></div></body></html>`, now.Format("2006-01-02 15:04:05"), statsTable(stats24), statsTable(stats7))
+	page := fmt.Sprintf(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NetWatcher Statistics</title><style>:root{color-scheme:light dark}body{font:14px/1.45 "Segoe UI",Arial,sans-serif;margin:0;background:#111820;color:#eaf0f7}.wrap{max-width:1100px;margin:auto;padding:28px}.hero{background:linear-gradient(135deg,#0b6cff,#38bdf8);padding:26px;border-radius:18px;color:white;box-shadow:0 18px 50px #0005}.card{background:#18222d;border:1px solid #2b3948;border-radius:16px;padding:18px;margin-top:18px;overflow:auto}table{width:100%%;border-collapse:collapse;min-width:720px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #2b3948}th{color:#8ec5ff}small{opacity:.8}@media(prefers-color-scheme:light){body{background:#f3f6fa;color:#18222d}.card{background:white;border-color:#d9e2ec}th,td{border-color:#e3e9ef}}</style></head><body><div class="wrap"><section class="hero"><h1>NetWatcher Statistics</h1><p>Generated %s. Statistics are calculated locally from your CSV logs; no telemetry is uploaded.</p></section><section class="card"><h2>Last 24 hours</h2><table><thead><tr><th>Target</th><th>Samples</th><th>Availability</th><th>Packet loss</th><th>Average</th><th>P95</th><th>Jitter</th><th>Quality</th><th>Failures</th></tr></thead><tbody>%s</tbody></table></section><section class="card"><h2>Last 7 days</h2><table><thead><tr><th>Target</th><th>Samples</th><th>Availability</th><th>Packet loss</th><th>Average</th><th>P95</th><th>Jitter</th><th>Quality</th><th>Failures</th></tr></thead><tbody>%s</tbody></table></section><p><small>Availability is the percentage of successful checks for each target. Jitter is the average change between consecutive successful latency samples. This is diagnostic evidence, not a contractual SLA measurement.</small></p></div></body></html>`, now.Format("2006-01-02 15:04:05"), statsTable(stats24), statsTable(stats7))
 	path := filepath.Join(logDir, "netwatcher_statistics_"+now.Format("20060102_150405")+".html")
 	return path, os.WriteFile(path, []byte(page), 0644)
 }

@@ -4,12 +4,22 @@ NetWatcher is designed to work locally.
 
 ## Data stored on the computer
 
-NetWatcher stores configuration under the current user's roaming application-data directory and writes CSV/HTML diagnostic files to `Documents\NetWatcherLogs`.
+NetWatcher may store:
 
-## Network access
+- application preferences under `%APPDATA%\NetWatcher`;
+- daily connection samples and outage records under `Documents\NetWatcherLogs`;
+- HTML reports and ZIP exports requested by the user.
 
-NetWatcher sends ICMP echo requests to the configured monitoring targets. When automatic update checks are enabled, it requests the latest public release metadata from the GitHub API for this repository.
+These files are not uploaded by NetWatcher.
 
-## Data not collected
+## Network requests made by the application
 
-NetWatcher does not include telemetry, analytics, advertising, user accounts, cloud synchronization, or automatic log uploads. It does not collect browsing history or inspect network payloads.
+- Monitoring checks contact only the targets configured by the user and the built-in gateway, Cloudflare and Google targets.
+- Automatic update checks contact GitHub's public Releases API when enabled.
+- Experimental Access Mode sends DNS-over-HTTPS queries to Cloudflare and opens direct TCP connections to destinations requested by proxy-aware applications.
+
+NetWatcher does not provide analytics, advertising, accounts or remote telemetry.
+
+## Access Mode and browsing data
+
+Access Mode is a local proxy running on `127.0.0.1`. It forwards traffic in memory and does not write requested URLs, page contents, cookies or credentials to the NetWatcher logs. HTTPS content remains encrypted between the application/browser and the destination server. The local proxy only fragments the initial encrypted stream while forwarding it.

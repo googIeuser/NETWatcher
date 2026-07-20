@@ -2,13 +2,13 @@
 
 ## Normal release
 
-1. Update `appVersion` in `main.go` and `CHANGELOG.md`.
+1. Update `appVersion` in `version.go` and add the release notes to `CHANGELOG.md`.
 2. Commit and push the changes.
-3. Create and push a matching tag:
+3. Either run **Actions → Release → Run workflow** with the matching version, or create and push a matching tag:
 
 ```powershell
-git tag -a v2.1.0 -m "NetWatcher 2.1.0"
-git push origin v2.1.0
+git tag -a v2.2.2 -m "NetWatcher 2.2.2"
+git push origin v2.2.2
 ```
 
 The release workflow builds a repository-aware setup executable. The application uses that repository identifier for GitHub update checks.
@@ -29,7 +29,9 @@ A publicly trusted code-signing certificate is required to show a verified publi
 Download the EXE and `.sha256` asset from the GitHub Release, then verify:
 
 ```powershell
-(Get-FileHash .\NetWatcher_Setup_2.1.0.exe -Algorithm SHA256).Hash
+(Get-FileHash .\NetWatcher_Setup_2.2.2.exe -Algorithm SHA256).Hash
 ```
 
-Test installation, upgrade, uninstall, startup-to-tray, minimize-to-tray, outage notification, statistics generation, ZIP export, and update checking on a clean Windows 10/11 virtual machine before announcing the release.
+Before announcing a release, test installation, upgrade, uninstall, startup-to-tray, minimize-to-tray, target editing, ping/TCP/HTTPS checks, graph ranges, outage notifications, Statistics, Outage History, Evidence Report, ZIP export, update checking and Access Mode on clean Windows 10 and Windows 11 virtual machines.
+
+When testing Access Mode, confirm that Windows proxy settings are restored after Stop and after a normal application exit. Also test recovery after forcibly terminating the app while Access Mode owns the proxy.

@@ -1,6 +1,6 @@
 # NetWatcher
 
-NetWatcher is a lightweight Windows internet connection monitor. It continuously checks the default gateway and public targets, records latency and packet loss, detects outages, and creates evidence that can be shared with an ISP or regulator.
+NetWatcher is a lightweight Windows connection monitor and local diagnostics utility. It records latency, jitter, packet loss and outages, separates local-network failures from wider internet failures, and produces modern evidence reports that can be shared with an ISP or regulator.
 
 [Download the latest release](../../releases/latest)
 
@@ -8,22 +8,61 @@ NetWatcher is a lightweight Windows internet connection monitor. It continuously
 
 ## Features
 
-- Default gateway, Cloudflare, Google, and custom-target monitoring
-- Live latency graph and failed-ping markers
-- Local-network, ISP-outage, degraded-access, and high-latency classification
-- CSV logs and printable HTML evidence reports
-- 24-hour and 7-day statistics page
-- One-click ZIP export of logs and reports
+- Default gateway, Cloudflare, Google and custom-target monitoring
+- Ping, TCP and HTTP/HTTPS target checks
+- Live latency graph with 5-minute, 30-minute, 1-hour and 24-hour ranges
+- Rolling packet-loss, jitter and connection-quality scoring
+- Local-network, ISP-outage, partial-access and high-latency classification
+- Target Manager for adding, editing, renaming and removing custom targets
+- Modern Statistics, Outage History and ISP Evidence HTML pages
+- 24-hour, 7-day and 30-day evidence-report ranges
+- CSV logs, printable HTML reports and one-click ZIP export
+- Configurable automatic log retention
 - Windows outage and recovery notifications
-- Background tray mode and start-with-Windows support
+- Full tray quick menu and start-with-Windows support
 - Light and dark themes
 - Automatic GitHub release checks
 - Per-user one-click installation with an integrated uninstaller
-- No telemetry, advertising, or account requirement
+- No telemetry, advertising or account requirement
+
+## Custom target formats
+
+A plain host or IP uses ICMP ping:
+
+```text
+1.1.1.1
+example.com
+```
+
+A TCP target checks whether a port accepts a connection:
+
+```text
+tcp://example.com:443
+```
+
+An HTTP or HTTPS target checks an actual web endpoint instead of sending ping:
+
+```text
+https://example.com/health
+http://192.168.1.10/status
+```
+
+## Experimental Access Mode
+
+NetWatcher 2.2 includes an optional browser/proxy-aware access mode. It runs a local HTTP CONNECT proxy, resolves destination names through DNS-over-HTTPS, and splits the first bytes of the TLS connection into small writes. The module:
+
+- does **not** use ICMP ping;
+- does **not** install a packet driver;
+- does **not** require administrator rights;
+- is not a VPN and does not change the public IP address;
+- mainly affects browsers and applications that follow the Windows proxy setting;
+- may not work against every DNS, IP, SNI, QUIC or active-DPI blocking method.
+
+The original Windows proxy configuration is saved and restored when Access Mode stops. A stale NetWatcher-owned proxy setting is also recovered on the next launch after an unexpected shutdown. Use this feature only where permitted by applicable law, network policy and service terms.
 
 ## Privacy
 
-All monitoring and report generation happen locally. NetWatcher only contacts GitHub's public releases API when automatic update checks are enabled. It does not upload ping results, browsing history, IP addresses, or log files. See [PRIVACY.md](PRIVACY.md).
+Monitoring, statistics and report generation happen locally. NetWatcher does not upload measurements, browsing history, IP addresses or log files. When enabled, update checks contact GitHub's public Releases API. Access Mode sends DNS-over-HTTPS lookups to Cloudflare and then connects directly to the requested destination through the local proxy. See [PRIVACY.md](PRIVACY.md).
 
 ## Installation
 
@@ -31,7 +70,7 @@ All monitoring and report generation happen locally. NetWatcher only contacts Gi
 2. Download `NetWatcher_Setup_<version>.exe`.
 3. Double-click it and approve the installation.
 
-The application installs for the current Windows user and does not require administrator access. Logs are stored in:
+The application installs for the current Windows user. Logs are stored in:
 
 ```text
 Documents\NetWatcherLogs
@@ -47,11 +86,11 @@ Requirements: Go 1.23 or newer and Windows 10/11 for runtime testing.
 ./scripts/build.ps1
 ```
 
-The output is written to `dist/NetWatcher_Setup_2.1.3.exe`.
+The output is written to `dist/NetWatcher_Setup_2.2.2.exe`.
 
 ## Release process
 
-Push a semantic-version tag such as `v2.1.2`. GitHub Actions tests the project, builds the Windows setup executable, optionally signs it, generates a SHA-256 checksum, and creates a GitHub Release. GitHub Releases are intended for distributing binary assets and release notes. See [docs/RELEASING.md](docs/RELEASING.md).
+Push a semantic-version tag such as `v2.2.2`, or run the **Release** workflow manually with version `2.2.2`. GitHub Actions tests the project, builds the Windows setup executable, optionally signs it, generates a SHA-256 checksum, and creates a GitHub Release. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Contributing and security
 

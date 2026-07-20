@@ -10,7 +10,7 @@ OUT = ROOT / "app_manifest_windows_amd64.syso"
 
 manifest = b'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity version="2.1.0.0" processorArchitecture="amd64" name="NetWatcher.NetWatcher" type="win32"/>
+  <assemblyIdentity version="2.2.2.0" processorArchitecture="amd64" name="NetWatcher.NetWatcher" type="win32"/>
   <description>NetWatcher Internet Connection Monitor</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>

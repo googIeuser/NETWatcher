@@ -16,8 +16,8 @@ import (
 
 // githubRepository is injected by the GitHub Actions release workflow using:
 // -ldflags "-X main.githubRepository=${{ github.repository }}".
-// Local builds may leave it empty; update checks then remain disabled.
-var githubRepository string
+// Local builds use the public NetWatcher repository; release builds can still override it.
+var githubRepository = "googIeuser/NetWatcher"
 
 type TrayNotification struct {
 	Title string

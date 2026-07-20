@@ -29,9 +29,6 @@ import (
 )
 
 const (
-	appName    = "NetWatcher"
-	appVersion = "2.1.3"
-
 	WS_OVERLAPPEDWINDOW = 0x00CF0000
 	WS_CAPTION          = 0x00C00000
 	WS_SYSMENU          = 0x00080000
@@ -57,6 +54,7 @@ const (
 	BS_DEFPUSHBUTTON = 0x00000001
 	BS_AUTOCHECKBOX  = 0x00000003
 	BS_OWNERDRAW     = 0x0000000B
+	BS_MULTILINE     = 0x00002000
 
 	SS_LEFT   = 0x00000000
 	SS_CENTER = 0x00000001
@@ -72,6 +70,7 @@ const (
 	WM_CREATE         = 0x0001
 	WM_DESTROY        = 0x0002
 	WM_SIZE           = 0x0005
+	WM_GETMINMAXINFO  = 0x0024
 	WM_PAINT          = 0x000F
 	WM_CLOSE          = 0x0010
 	WM_ERASEBKGND     = 0x0014
@@ -158,23 +157,30 @@ const (
 	PBM_SETPOS         = WM_USER + 2
 	PBM_SETRANGE32     = WM_USER + 6
 
-	ctrlStart      = 1001
-	ctrlStop       = 1002
-	ctrlReport     = 1003
-	ctrlLogs       = 1004
-	ctrlAdd        = 1005
-	ctrlInterval   = 1006
-	ctrlCustom     = 1008
-	ctrlStatusText = 1009
-	ctrlEventText  = 1010
-	ctrlSummary    = 1011
-	ctrlSettings   = 1012
-	ctrlStats      = 1013
-	ctrlExport     = 1014
-	ctrlRemove     = 1015
+	ctrlStart         = 1001
+	ctrlStop          = 1002
+	ctrlReport        = 1003
+	ctrlLogs          = 1004
+	ctrlAdd           = 1005
+	ctrlInterval      = 1006
+	ctrlCustom        = 1008
+	ctrlStatusText    = 1009
+	ctrlEventText     = 1010
+	ctrlSummary       = 1011
+	ctrlSettings      = 1012
+	ctrlStats         = 1013
+	ctrlExport        = 1014
+	ctrlRemove        = 1015
+	ctrlTargets       = 1016
+	ctrlHistory       = 1017
+	ctrlEvidence      = 1018
+	ctrlGraphRange    = 1019
+	ctrlAccess        = 1020
+	ctrlEvidenceRange = 1021
 
 	staticInterval = 2001
 	staticCustom   = 2003
+	staticGraph    = 2004
 
 	setLanguage       = 5001
 	setTheme          = 5010
@@ -197,6 +203,8 @@ const (
 	setInfo           = 5106
 	setAutoUpdate     = 5111
 	setOutageNotify   = 5112
+	setRetention      = 5113
+	setLabelRetention = 5114
 
 	instLanguageCombo = wizard.CtrlLanguageCombo
 	instPathEdit      = wizard.CtrlPathEdit
@@ -230,6 +238,13 @@ const (
 	trayOpenID        = 7101
 	trayExitID        = 7102
 	trayCheckUpdateID = 7103
+	trayStartID       = 7104
+	trayStopID        = 7105
+	trayStatsID       = 7106
+	trayHistoryID     = 7107
+	trayLogsID        = 7108
+	trayExportID      = 7109
+	trayAccessID      = 7110
 
 	NIM_ADD     = 0x00000000
 	NIM_MODIFY  = 0x00000001
@@ -245,7 +260,7 @@ const (
 	TPM_RIGHTBUTTON  = 0x0002
 	TPM_RETURNCMD    = 0x0100
 
-	maxHistory = 300
+	maxHistory = 200000
 )
 
 //go:embed assets/app_icon.ico
@@ -345,6 +360,13 @@ type WNDCLASSEX struct {
 
 type POINT struct{ X, Y int32 }
 type RECT struct{ Left, Top, Right, Bottom int32 }
+type MINMAXINFO struct {
+	PtReserved     POINT
+	PtMaxSize      POINT
+	PtMaxPosition  POINT
+	PtMinTrackSize POINT
+	PtMaxTrackSize POINT
+}
 type MSG struct {
 	HWnd     syscall.Handle
 	Message  uint32
@@ -409,73 +431,60 @@ type BROWSEINFO struct {
 }
 
 type Config struct {
-	Language            string   `json:"language"`
-	Theme               string   `json:"theme"`
-	Interval            float64  `json:"interval_seconds"`
-	TimeoutMS           int      `json:"timeout_ms"`
-	HighLatencyMS       float64  `json:"high_latency_ms"`
-	ConfirmCycles       int      `json:"confirm_cycles"`
-	AutoStart           bool     `json:"start_with_windows"`
-	StartMinimizedTray  bool     `json:"start_minimized_to_notification_area"`
-	AutoMonitor         bool     `json:"start_monitoring_automatically"`
-	CloseToTray         bool     `json:"keep_running_in_tray_on_close"`
-	AutoCheckUpdates    bool     `json:"automatically_check_for_updates"`
-	OutageNotifications bool     `json:"show_outage_notifications"`
-	FirstRunComplete    bool     `json:"first_run_setup_completed"`
-	CustomTargets       []string `json:"custom_targets"`
-}
-
-type Target struct {
-	Name string
-	Host string
-	Kind string
-}
-
-type PingResult struct {
-	Timestamp time.Time
-	Target    Target
-	Success   bool
-	Latency   float64
-	Message   string
-}
-
-type Sample struct {
-	Time    time.Time
-	Latency float64
-	Success bool
-}
-
-type Outage struct {
-	Start    time.Time
-	End      time.Time
-	Category string
-	Details  string
+	Language               string   `json:"language"`
+	Theme                  string   `json:"theme"`
+	Interval               float64  `json:"interval_seconds"`
+	TimeoutMS              int      `json:"timeout_ms"`
+	HighLatencyMS          float64  `json:"high_latency_ms"`
+	ConfirmCycles          int      `json:"confirm_cycles"`
+	AutoStart              bool     `json:"start_with_windows"`
+	StartMinimizedTray     bool     `json:"start_minimized_to_notification_area"`
+	AutoMonitor            bool     `json:"start_monitoring_automatically"`
+	CloseToTray            bool     `json:"keep_running_in_tray_on_close"`
+	AutoCheckUpdates       bool     `json:"automatically_check_for_updates"`
+	OutageNotifications    bool     `json:"show_outage_notifications"`
+	FirstRunComplete       bool     `json:"first_run_setup_completed"`
+	CustomTargets          []string `json:"custom_targets"`
+	GraphRangeMinutes      int      `json:"graph_range_minutes"`
+	LogRetentionDays       int      `json:"log_retention_days"`
+	AccessPort             int      `json:"access_proxy_port"`
+	AccessFragmentSize     int      `json:"access_fragment_size"`
+	AccessUseSystemProxy   bool     `json:"access_use_system_proxy"`
+	AccessAutoStart        bool     `json:"access_auto_start"`
+	AccessProxyOwned       bool     `json:"access_proxy_owned"`
+	AccessPreviousEnabled  bool     `json:"access_previous_proxy_enabled"`
+	AccessPreviousServer   string   `json:"access_previous_proxy_server"`
+	AccessPreviousOverride string   `json:"access_previous_proxy_override"`
 }
 
 type App struct {
-	hwnd              syscall.Handle
-	controls          map[int]syscall.Handle
-	mu                sync.RWMutex
-	targets           []Target
-	latest            map[string]PingResult
-	history           map[string][]Sample
-	events            []string
-	results           []PingResult
-	outages           []Outage
-	active            *Outage
-	pendingState      string
-	pendingCount      int
-	monitoring        bool
-	stopCh            chan struct{}
-	logDir            string
-	config            Config
-	trayAdded         bool
-	trayIcon          syscall.Handle
-	trayMu            sync.Mutex
-	startHidden       bool
-	exiting           bool
-	notificationQueue []TrayNotification
-	pendingUpdateURL  string
+	hwnd                syscall.Handle
+	controls            map[int]syscall.Handle
+	mu                  sync.RWMutex
+	targets             []Target
+	latest              map[string]PingResult
+	history             map[string][]Sample
+	events              []string
+	results             []PingResult
+	outages             []Outage
+	active              *Outage
+	pendingState        string
+	pendingCount        int
+	monitoring          bool
+	stopCh              chan struct{}
+	logDir              string
+	config              Config
+	trayAdded           bool
+	trayIcon            syscall.Handle
+	trayMu              sync.Mutex
+	startHidden         bool
+	exiting             bool
+	notificationQueue   []TrayNotification
+	pendingUpdateURL    string
+	accessProxy         *AccessProxy
+	accessProxyEnabled  bool
+	accessProxyPrevious *SystemProxyState
+	buttonFont          syscall.Handle
 }
 
 type SettingsWindow struct {
@@ -484,6 +493,12 @@ type SettingsWindow struct {
 	parent        *App
 	originalLang  string
 	originalTheme string
+	titleFont     syscall.Handle
+	subtitleFont  syscall.Handle
+	sectionFont   syscall.Handle
+	bodyFont      syscall.Handle
+	smallFont     syscall.Handle
+	buttonFont    syscall.Handle
 }
 
 type Installer struct {
@@ -740,7 +755,7 @@ func normalizeTheme(theme string) string {
 	return "light"
 }
 func defaultConfig() Config {
-	return Config{Language: defaultLanguage(), Theme: "light", Interval: 2, TimeoutMS: 1500, HighLatencyMS: 150, ConfirmCycles: 2, StartMinimizedTray: true, AutoCheckUpdates: true, OutageNotifications: true}
+	return Config{Language: defaultLanguage(), Theme: "light", Interval: 2, TimeoutMS: 1500, HighLatencyMS: 150, ConfirmCycles: 2, StartMinimizedTray: true, AutoCheckUpdates: true, OutageNotifications: true, GraphRangeMinutes: 5, LogRetentionDays: 30, AccessPort: 8079, AccessFragmentSize: 1}
 }
 func loadConfig() Config {
 	cfg := defaultConfig()
@@ -761,6 +776,16 @@ func loadConfig() Config {
 	}
 	if cfg.ConfirmCycles < 1 {
 		cfg.ConfirmCycles = 2
+	}
+	cfg.GraphRangeMinutes = normalizeGraphRange(cfg.GraphRangeMinutes)
+	if cfg.LogRetentionDays < 0 {
+		cfg.LogRetentionDays = 30
+	}
+	if cfg.AccessPort < 1 || cfg.AccessPort > 65535 {
+		cfg.AccessPort = 8079
+	}
+	if cfg.AccessFragmentSize < 1 || cfg.AccessFragmentSize > 64 {
+		cfg.AccessFragmentSize = 1
 	}
 	return cfg
 }
@@ -878,6 +903,16 @@ func setText(hwnd syscall.Handle, text string) {
 func move(hwnd syscall.Handle, x, y, w, h int32) {
 	if hwnd != 0 {
 		procMoveWindow.Call(uintptr(hwnd), uintptr(x), uintptr(y), uintptr(w), uintptr(h), 1)
+	}
+}
+func moveNoRedraw(hwnd syscall.Handle, x, y, w, h int32) {
+	if hwnd != 0 {
+		procMoveWindow.Call(uintptr(hwnd), uintptr(x), uintptr(y), uintptr(w), uintptr(h), 0)
+	}
+}
+func redrawLayout(hwnd syscall.Handle) {
+	if hwnd != 0 {
+		procRedrawWindow.Call(uintptr(hwnd), 0, 0, RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW)
 	}
 }
 func show(hwnd syscall.Handle, visible bool) {
@@ -1437,7 +1472,7 @@ func (i *Installer) drawOwnerControl(dis *DRAWITEMSTRUCT) {
 		if disabled {
 			textColor = rgb(145, 151, 162)
 		}
-		drawInstallerTextRect(hdc, RECT{44, 0, rc.Right - 4, rc.Bottom}, text, textColor, i.normalFont, DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS)
+		drawInstallerTextRect(hdc, RECT{44, 0, rc.Right - 4, rc.Bottom}, text, textColor, i.normalFont, DT_LEFT|DT_VCENTER|DT_SINGLELINE)
 		return
 	}
 	primary := id == instNext
@@ -1506,7 +1541,7 @@ func (i *Installer) paint(hdc syscall.Handle, rc RECT) {
 	subtitleKeys := []string{"welcome_sub", "options_sub", "summary_sub", "installing_sub", "finish_sub"}
 	pageIndex := int(i.page)
 	if pageIndex >= 0 && pageIndex < len(titleKeys) {
-		drawInstallerTextRect(hdc, toRect(layout.Title), it(i.language, titleKeys[pageIndex]), dark, i.titleFont, DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS)
+		drawInstallerTextRect(hdc, toRect(layout.Title), it(i.language, titleKeys[pageIndex]), dark, i.titleFont, DT_LEFT|DT_VCENTER|DT_SINGLELINE)
 		drawInstallerTextRect(hdc, toRect(layout.Subtitle), it(i.language, subtitleKeys[pageIndex]), muted, i.normalFont, DT_LEFT|DT_WORDBREAK)
 	}
 
@@ -1725,19 +1760,27 @@ func runUninstaller() {
 
 func newApp() *App {
 	cfg := loadConfig()
+	recoverStaleSystemProxy(&cfg)
 	a := &App{controls: map[int]syscall.Handle{}, latest: map[string]PingResult{}, history: map[string][]Sample{}, stopCh: make(chan struct{}), logDir: documentsDir(), config: cfg}
+	if restored, err := readGraphHistory(a.logDir, time.Now().Add(-24*time.Hour)); err == nil {
+		a.history = restored
+	}
 	if gateway := getDefaultGateway(); gateway != "" {
-		a.targets = append(a.targets, Target{"Modem/Default Gateway", gateway, "local"})
+		a.targets = append(a.targets, Target{Name: "Modem/Default Gateway", Host: gateway, Kind: "local", Mode: checkModePing})
 	} else {
 		a.addEvent(tr(cfg.Language, "gateway_missing"))
 	}
-	a.targets = append(a.targets, Target{"Cloudflare", "1.1.1.1", "internet"}, Target{"Google", "8.8.8.8", "internet"})
+	a.targets = append(a.targets, Target{Name: "Cloudflare", Host: "1.1.1.1", Kind: "internet", Mode: checkModePing}, Target{Name: "Google", Host: "8.8.8.8", Kind: "internet", Mode: checkModePing})
 	for _, host := range cfg.CustomTargets {
 		if strings.TrimSpace(host) != "" {
-			prefix := "Custom: "
-			a.targets = append(a.targets, Target{prefix + host, host, "internet"})
+			a.targets = append(a.targets, parseTargetSpec(host))
 		}
 	}
+	go func() {
+		if removed, err := cleanupOldLogs(a.logDir, cfg.LogRetentionDays); err == nil && removed > 0 {
+			a.addEvent(fmt.Sprintf("Removed %d expired log file(s).", removed))
+		}
+	}()
 	return a
 }
 func getDefaultGateway() string {
@@ -1837,7 +1880,7 @@ func (a *App) monitorLoop(interval time.Duration, timeout int) {
 		var wg sync.WaitGroup
 		for idx, target := range targets {
 			wg.Add(1)
-			go func(i int, t Target) { defer wg.Done(); results[i] = pingTarget(t, timeout, lang) }(idx, target)
+			go func(i int, t Target) { defer wg.Done(); results[i] = checkTarget(t, timeout, lang) }(idx, target)
 		}
 		wg.Wait()
 		a.handleCycle(results)
@@ -1962,31 +2005,6 @@ func (a *App) stateLabel(state string) string {
 	}
 	return state
 }
-func formatDuration(d time.Duration, lang string) string {
-	seconds := int(d.Seconds())
-	if seconds < 0 {
-		seconds = 0
-	}
-	h := seconds / 3600
-	m := (seconds % 3600) / 60
-	s := seconds % 60
-	if lang == "en" {
-		if h > 0 {
-			return fmt.Sprintf("%d h %d min %d sec", h, m, s)
-		}
-		if m > 0 {
-			return fmt.Sprintf("%d min %d sec", m, s)
-		}
-		return fmt.Sprintf("%d sec", s)
-	}
-	if h > 0 {
-		return fmt.Sprintf("%d sa %d dk %d sn", h, m, s)
-	}
-	if m > 0 {
-		return fmt.Sprintf("%d dk %d sn", m, s)
-	}
-	return fmt.Sprintf("%d sn", s)
-}
 func ensureCSV(path string, header []string) (*os.File, *csv.Writer, error) {
 	_, err := os.Stat(path)
 	newFile := os.IsNotExist(err)
@@ -2033,14 +2051,21 @@ func (a *App) addCustomTarget(host string) bool {
 	if host == "" {
 		return false
 	}
+	target := parseTargetSpec(host)
 	a.mu.Lock()
-	for _, t := range a.targets {
-		if strings.EqualFold(t.Host, host) {
+	for _, existing := range a.targets {
+		if strings.EqualFold(targetConfigValue(existing), host) {
 			a.mu.Unlock()
 			return false
 		}
 	}
-	a.targets = append(a.targets, Target{"Custom: " + host, host, "internet"})
+	for _, saved := range a.config.CustomTargets {
+		if strings.EqualFold(strings.TrimSpace(saved), host) {
+			a.mu.Unlock()
+			return false
+		}
+	}
+	a.targets = append(a.targets, target)
 	a.config.CustomTargets = append(a.config.CustomTargets, host)
 	a.addEventLocked(tr(a.config.Language, "target_added") + ": " + host)
 	cfg := a.config
@@ -2076,15 +2101,17 @@ func (a *App) removeCustomTarget(host string) bool {
 	}
 	a.config.CustomTargets = custom
 	targets := a.targets[:0]
+	removedKey := host
 	for _, target := range a.targets {
-		if strings.HasPrefix(target.Name, "Custom: ") && strings.EqualFold(target.Host, host) {
+		if target.Custom && strings.EqualFold(targetConfigValue(target), host) {
+			removedKey = target.Host
 			continue
 		}
 		targets = append(targets, target)
 	}
 	a.targets = targets
-	delete(a.latest, host)
-	delete(a.history, host)
+	delete(a.latest, removedKey)
+	delete(a.history, removedKey)
 	a.addEventLocked(tr(a.config.Language, "target_removed") + ": " + host)
 	cfg := a.config
 	a.mu.Unlock()
@@ -2206,7 +2233,26 @@ func (a *App) showTrayMenu() {
 		return
 	}
 	defer procDestroyMenu.Call(menu)
+	a.mu.RLock()
+	monitoring := a.monitoring
+	accessEnabled := a.accessProxyEnabled
+	a.mu.RUnlock()
 	procAppendMenuW.Call(menu, MF_STRING, trayOpenID, uintptr(unsafe.Pointer(ptr("Open NetWatcher"))))
+	if monitoring {
+		procAppendMenuW.Call(menu, MF_STRING, trayStopID, uintptr(unsafe.Pointer(ptr("Stop Monitoring"))))
+	} else {
+		procAppendMenuW.Call(menu, MF_STRING, trayStartID, uintptr(unsafe.Pointer(ptr("Start Monitoring"))))
+	}
+	if accessEnabled {
+		procAppendMenuW.Call(menu, MF_STRING, trayAccessID, uintptr(unsafe.Pointer(ptr("Stop Access Mode"))))
+	} else {
+		procAppendMenuW.Call(menu, MF_STRING, trayAccessID, uintptr(unsafe.Pointer(ptr("Start Access Mode"))))
+	}
+	procAppendMenuW.Call(menu, MF_SEPARATOR, 0, 0)
+	procAppendMenuW.Call(menu, MF_STRING, trayStatsID, uintptr(unsafe.Pointer(ptr("Statistics"))))
+	procAppendMenuW.Call(menu, MF_STRING, trayHistoryID, uintptr(unsafe.Pointer(ptr("Outage History"))))
+	procAppendMenuW.Call(menu, MF_STRING, trayLogsID, uintptr(unsafe.Pointer(ptr("Open Logs"))))
+	procAppendMenuW.Call(menu, MF_STRING, trayExportID, uintptr(unsafe.Pointer(ptr("Export ZIP"))))
 	if strings.TrimSpace(githubRepository) != "" {
 		procAppendMenuW.Call(menu, MF_STRING, trayCheckUpdateID, uintptr(unsafe.Pointer(ptr("Check for Updates"))))
 	}
@@ -2219,11 +2265,36 @@ func (a *App) showTrayMenu() {
 	switch int(command) {
 	case trayOpenID:
 		a.showFromTray()
+	case trayStartID:
+		a.mu.RLock()
+		interval, timeout := a.config.Interval, a.config.TimeoutMS
+		a.mu.RUnlock()
+		a.startMonitoring(interval, timeout)
+		postRefresh(a.hwnd)
+	case trayStopID:
+		a.stopMonitoring(tr(a.config.Language, "user_stopped"))
+	case trayAccessID:
+		a.toggleAccessMode()
+	case trayStatsID:
+		if path, err := generateStatisticsPage(a.logDir); err == nil {
+			_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", path).Start()
+		}
+	case trayHistoryID:
+		if path, err := generateOutageHistoryPage(a.logDir); err == nil {
+			_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", path).Start()
+		}
+	case trayLogsID:
+		_ = exec.Command("explorer", a.logDir).Start()
+	case trayExportID:
+		if path, err := exportLogsZip(a.logDir); err == nil {
+			revealFile(path)
+		}
 	case trayCheckUpdateID:
 		a.checkForUpdates(true)
 	case trayExitID:
 		a.exiting = true
 		a.removeTrayIcon()
+		a.stopAccessMode()
 		a.stopMonitoring(tr(a.config.Language, "app_closed"))
 		procDestroyWindow.Call(uintptr(a.hwnd))
 	}
@@ -2338,13 +2409,38 @@ func (a *App) report() string {
 }
 func (a *App) buildControls() {
 	lang := a.config.Language
-	a.controls[ctrlStart] = createControl(a.hwnd, "BUTTON", tr(lang, "start"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_DEFPUSHBUTTON, ctrlStart)
-	a.controls[ctrlStop] = createControl(a.hwnd, "BUTTON", tr(lang, "stop"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlStop)
-	a.controls[ctrlReport] = createControl(a.hwnd, "BUTTON", tr(lang, "report"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlReport)
-	a.controls[ctrlLogs] = createControl(a.hwnd, "BUTTON", tr(lang, "logs"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlLogs)
-	a.controls[ctrlSettings] = createControl(a.hwnd, "BUTTON", tr(lang, "settings"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlSettings)
-	a.controls[ctrlStats] = createControl(a.hwnd, "BUTTON", "Statistics", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlStats)
-	a.controls[ctrlExport] = createControl(a.hwnd, "BUTTON", "Export ZIP", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlExport)
+	a.buttonFont = createUIFont(-14, FW_SEMIBOLD)
+	buttonStyle := mainButtonWindowStyle()
+	a.controls[ctrlStart] = createControl(a.hwnd, "BUTTON", tr(lang, "start"), buttonStyle, ctrlStart)
+	a.controls[ctrlStop] = createControl(a.hwnd, "BUTTON", tr(lang, "stop"), buttonStyle, ctrlStop)
+	a.controls[ctrlReport] = createControl(a.hwnd, "BUTTON", tr(lang, "report"), buttonStyle, ctrlReport)
+	a.controls[ctrlLogs] = createControl(a.hwnd, "BUTTON", tr(lang, "logs"), buttonStyle, ctrlLogs)
+	a.controls[ctrlSettings] = createControl(a.hwnd, "BUTTON", tr(lang, "settings"), buttonStyle, ctrlSettings)
+	a.controls[ctrlStats] = createControl(a.hwnd, "BUTTON", "Statistics", buttonStyle, ctrlStats)
+	a.controls[ctrlExport] = createControl(a.hwnd, "BUTTON", "Export ZIP", buttonStyle, ctrlExport)
+	a.controls[ctrlHistory] = createControl(a.hwnd, "BUTTON", "Outage History", buttonStyle, ctrlHistory)
+	a.controls[ctrlEvidence] = createControl(a.hwnd, "BUTTON", "Evidence Report", buttonStyle, ctrlEvidence)
+	a.controls[ctrlAccess] = createControl(a.hwnd, "BUTTON", "Access Mode", buttonStyle, ctrlAccess)
+	a.controls[staticGraph] = createControl(a.hwnd, "STATIC", "Graph:", WS_CHILD|WS_VISIBLE|SS_LEFT, staticGraph)
+	a.controls[ctrlGraphRange] = createControl(a.hwnd, "COMBOBOX", "", WS_CHILD|WS_VISIBLE|WS_TABSTOP|WS_VSCROLL|CBS_DROPDOWNLIST, ctrlGraphRange)
+	for _, value := range []string{"5 minutes", "30 minutes", "1 hour", "24 hours"} {
+		comboAdd(a.controls[ctrlGraphRange], value)
+	}
+	switch normalizeGraphRange(a.config.GraphRangeMinutes) {
+	case 30:
+		comboSet(a.controls[ctrlGraphRange], 1)
+	case 60:
+		comboSet(a.controls[ctrlGraphRange], 2)
+	case 1440:
+		comboSet(a.controls[ctrlGraphRange], 3)
+	default:
+		comboSet(a.controls[ctrlGraphRange], 0)
+	}
+	a.controls[ctrlEvidenceRange] = createControl(a.hwnd, "COMBOBOX", "", WS_CHILD|WS_VISIBLE|WS_TABSTOP|WS_VSCROLL|CBS_DROPDOWNLIST, ctrlEvidenceRange)
+	for _, value := range []string{"24 hours", "7 days", "30 days"} {
+		comboAdd(a.controls[ctrlEvidenceRange], value)
+	}
+	comboSet(a.controls[ctrlEvidenceRange], 1)
 	a.controls[staticCustom] = createControl(a.hwnd, "STATIC", tr(lang, "custom"), WS_CHILD|WS_VISIBLE|SS_LEFT, staticCustom)
 	a.controls[ctrlCustom] = createControl(a.hwnd, "COMBOBOX", "", WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|WS_VSCROLL|CBS_DROPDOWN|CBS_AUTOHSCROLL, ctrlCustom)
 	for _, target := range a.config.CustomTargets {
@@ -2352,8 +2448,9 @@ func (a *App) buildControls() {
 			comboAdd(a.controls[ctrlCustom], target)
 		}
 	}
-	a.controls[ctrlAdd] = createControl(a.hwnd, "BUTTON", tr(lang, "add"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlAdd)
-	a.controls[ctrlRemove] = createControl(a.hwnd, "BUTTON", tr(lang, "remove"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlRemove)
+	a.controls[ctrlAdd] = createControl(a.hwnd, "BUTTON", tr(lang, "add"), buttonStyle, ctrlAdd)
+	a.controls[ctrlRemove] = createControl(a.hwnd, "BUTTON", tr(lang, "remove"), buttonStyle, ctrlRemove)
+	a.controls[ctrlTargets] = createControl(a.hwnd, "BUTTON", "Target Manager", buttonStyle, ctrlTargets)
 	a.controls[ctrlStatusText] = createControl(a.hwnd, "EDIT", "", WS_CHILD|WS_VISIBLE|WS_BORDER|ES_MULTILINE|ES_READONLY|WS_VSCROLL, ctrlStatusText)
 	a.controls[ctrlEventText] = createControl(a.hwnd, "EDIT", "", WS_CHILD|WS_VISIBLE|WS_BORDER|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL|WS_VSCROLL, ctrlEventText)
 	a.controls[ctrlSummary] = createControl(a.hwnd, "STATIC", tr(lang, "not_started"), WS_CHILD|WS_VISIBLE|SS_LEFT, ctrlSummary)
@@ -2368,6 +2465,11 @@ func (a *App) applyLanguage() {
 	setText(a.controls[ctrlSettings], tr(lang, "settings"))
 	setText(a.controls[ctrlStats], "Statistics")
 	setText(a.controls[ctrlExport], "Export ZIP")
+	setText(a.controls[ctrlHistory], "Outage History")
+	setText(a.controls[ctrlEvidence], "Evidence Report")
+	setText(a.controls[ctrlAccess], "Access Mode")
+	setText(a.controls[ctrlTargets], "Target Manager")
+	setText(a.controls[staticGraph], "Graph:")
 	setText(a.controls[staticCustom], tr(lang, "custom"))
 	setText(a.controls[ctrlAdd], tr(lang, "add"))
 	setText(a.controls[ctrlRemove], tr(lang, "remove"))
@@ -2383,37 +2485,93 @@ func (a *App) applyTheme() {
 	}
 	procInvalidateRect.Call(uintptr(a.hwnd), 0, 1)
 }
-func (a *App) layout(width, height int32) {
-	move(a.controls[ctrlStart], 10, 10, 145, 30)
-	move(a.controls[ctrlStop], 162, 10, 90, 30)
-	move(a.controls[ctrlSettings], width-322, 10, 104, 30)
-	move(a.controls[ctrlLogs], width-210, 10, 95, 30)
-	move(a.controls[ctrlReport], width-108, 10, 98, 30)
-	move(a.controls[ctrlStats], width-210, 47, 95, 28)
-	move(a.controls[ctrlExport], width-108, 47, 98, 28)
-	move(a.controls[staticCustom], 10, 52, 85, 20)
-	move(a.controls[ctrlCustom], 98, 48, 205, 180)
-	move(a.controls[ctrlAdd], 310, 47, 95, 28)
-	move(a.controls[ctrlRemove], 411, 47, 105, 28)
-	statusW := int32(410)
-	if width < 900 {
-		statusW = width/2 - 15
+func mainContentGeometry(width, height int32) (status RECT, graph RECT, events RECT, summary RECT) {
+	statusW := width * 33 / 100
+	if statusW < 410 {
+		statusW = 410
 	}
-	move(a.controls[ctrlStatusText], 10, 82, statusW, 250)
-	eventY := int32(345)
-	move(a.controls[ctrlEventText], 10, eventY, width-20, height-eventY-45)
-	move(a.controls[ctrlSummary], 10, height-30, width-20, 22)
+	if statusW > 520 {
+		statusW = 520
+	}
+	top := int32(148)
+	contentBottom := int32(392)
+	if height < 700 {
+		contentBottom = height / 2
+		if contentBottom < 330 {
+			contentBottom = 330
+		}
+	}
+	status = RECT{10, top, statusW, contentBottom}
+	graph = RECT{statusW + 18, top, width - 10, contentBottom}
+	summaryHeight := int32(40)
+	eventTop := contentBottom + 14
+	summary = RECT{10, height - summaryHeight - 8, width - 10, height - 8}
+	events = RECT{10, eventTop, width - 10, summary.Top - 8}
+	return
 }
+
+func (a *App) layout(width, height int32) {
+	if width < 1220 {
+		width = 1220
+	}
+	if height < 680 {
+		height = 680
+	}
+	const margin int32 = 10
+	const gap int32 = 8
+	const actionW int32 = 132
+	const actionH int32 = 32
+
+	moveNoRedraw(a.controls[ctrlStart], margin, 9, 145, 32)
+	moveNoRedraw(a.controls[ctrlStop], 163, 9, 90, 32)
+
+	right3 := width - margin - actionW
+	right2 := right3 - gap - actionW
+	right1 := right2 - gap - actionW
+	moveNoRedraw(a.controls[ctrlSettings], right1, 9, actionW, actionH)
+	moveNoRedraw(a.controls[ctrlLogs], right2, 9, actionW, actionH)
+	moveNoRedraw(a.controls[ctrlReport], right3, 9, actionW, actionH)
+
+	moveNoRedraw(a.controls[staticCustom], margin, 54, 86, 22)
+	moveNoRedraw(a.controls[ctrlCustom], 99, 48, 188, 180)
+	moveNoRedraw(a.controls[ctrlAdd], 295, 47, 86, 32)
+	moveNoRedraw(a.controls[ctrlRemove], 389, 47, 108, 32)
+	moveNoRedraw(a.controls[ctrlTargets], 505, 47, 116, 32)
+
+	moveNoRedraw(a.controls[ctrlAccess], right1, 47, actionW, actionH)
+	moveNoRedraw(a.controls[ctrlStats], right2, 47, actionW, actionH)
+	moveNoRedraw(a.controls[ctrlExport], right3, 47, actionW, actionH)
+	moveNoRedraw(a.controls[ctrlHistory], right1, 85, actionW, actionH)
+	moveNoRedraw(a.controls[ctrlEvidenceRange], right2, 85, actionW, 170)
+	moveNoRedraw(a.controls[ctrlEvidence], right3, 85, actionW, actionH)
+
+	graphComboW := int32(116)
+	graphLabelW := int32(54)
+	graphRight := right1 - 16
+	graphComboX := graphRight - graphComboW
+	graphLabelX := graphComboX - graphLabelW - 6
+	moveNoRedraw(a.controls[staticGraph], graphLabelX, 91, graphLabelW, 22)
+	moveNoRedraw(a.controls[ctrlGraphRange], graphComboX, 85, graphComboW, 170)
+
+	status, _, events, summary := mainContentGeometry(width, height)
+	moveNoRedraw(a.controls[ctrlStatusText], status.Left, status.Top, status.Right-status.Left, status.Bottom-status.Top)
+	moveNoRedraw(a.controls[ctrlEventText], events.Left, events.Top, events.Right-events.Left, events.Bottom-events.Top)
+	moveNoRedraw(a.controls[ctrlSummary], summary.Left, summary.Top, summary.Right-summary.Left, summary.Bottom-summary.Top)
+	redrawLayout(a.hwnd)
+}
+
 func (a *App) refreshUI() {
-	// Take a snapshot first, then release the lock before calling Win32 APIs.
-	// SendMessage/SetWindowText are synchronous and must not run while holding
-	// the monitor state lock.
+	// Snapshot shared state before invoking synchronous Win32 APIs.
 	a.mu.RLock()
 	lang := a.config.Language
 	targets := append([]Target(nil), a.targets...)
 	latest := make(map[string]PingResult, len(a.latest))
-	for k, v := range a.latest {
-		latest[k] = v
+	for key, value := range a.latest {
+		latest[key] = value
+	}
+	history := make(map[string][]Sample, len(a.history))
+	for key, values := range a.history {
+		history[key] = append([]Sample(nil), values...)
 	}
 	events := append([]string(nil), a.events...)
 	outages := append([]Outage(nil), a.outages...)
@@ -2425,54 +2583,105 @@ func (a *App) refreshUI() {
 	monitoring := a.monitoring
 	resultCount := len(a.results)
 	customTargetCount := len(a.config.CustomTargets)
+	accessEnabled := a.accessProxyEnabled
 	a.mu.RUnlock()
 
-	// Keep command buttons synchronized with the real monitor state. This is
-	// applied from the UI thread by refreshUI for manual start/stop, automatic
-	// monitoring on launch, and tray-start scenarios.
 	startEnabled, stopEnabled := monitorButtonState(monitoring)
 	enable(a.controls[ctrlStart], startEnabled)
 	enable(a.controls[ctrlStop], stopEnabled)
 	enable(a.controls[ctrlRemove], customTargetCount > 0)
+	if accessEnabled {
+		setText(a.controls[ctrlAccess], "Access: On")
+	} else {
+		setText(a.controls[ctrlAccess], "Access Mode")
+	}
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%s\t%s\r\n", tr(lang, "target"), tr(lang, "address"), tr(lang, "type"), tr(lang, "status"), tr(lang, "latency"), tr(lang, "last"))
-	for _, t := range targets {
-		r, ok := latest[t.Host]
-		status, latency, last := tr(lang, "waiting"), "-", "-"
+	var table strings.Builder
+	table.WriteString("CONNECTION STATUS - LAST 5 MINUTES\r\n")
+	table.WriteString("Quality combines response time, packet loss and connection stability.\r\n\r\n")
+	metricSince := time.Now().Add(-5 * time.Minute)
+	combinedInternet := make([]Sample, 0)
+	for _, target := range targets {
+		result, ok := latest[target.Host]
+		status, latency, last := tr(lang, "waiting"), "No response yet", "-"
 		if ok {
-			if r.Success {
+			if result.Success {
 				status = tr(lang, "online")
-				latency = fmt.Sprintf("%.1f ms", r.Latency)
+				latency = fmt.Sprintf("Ping %.1f ms", result.Latency)
 			} else {
 				status = tr(lang, "failed")
+				latency = "No response"
 			}
-			last = r.Timestamp.Format("15:04:05")
+			last = result.Timestamp.Format("15:04:05")
 		}
-		kind := tr(lang, "internet")
-		if t.Kind == "local" {
-			kind = tr(lang, "local")
+		metrics := calculateRollingMetrics(history[target.Host], metricSince)
+		qualityText := "Waiting for enough samples"
+		detailsText := "Packet loss -  |  Variation -"
+		if metrics.Samples > 0 {
+			detailsText = fmt.Sprintf("Packet loss %.1f%%  |  Variation %.1f ms", metrics.PacketLoss, metrics.Jitter)
+			if target.Kind == "local" {
+				if metrics.PacketLoss == 0 {
+					qualityText = "Local network OK"
+				} else {
+					qualityText = "Local network problem detected"
+				}
+			} else {
+				qualityText = qualityLabelWithMeaning(metrics.QualityLabel)
+			}
 		}
-		fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%s\t%s\r\n", t.Name, t.Host, kind, status, latency, last)
+		if target.Kind != "local" {
+			combinedInternet = append(combinedInternet, history[target.Host]...)
+		}
+		fmt.Fprintf(&table, "%s (%s)\r\n", target.Name, target.Host)
+		fmt.Fprintf(&table, "  %s  |  %s  |  %s\r\n", status, latency, qualityText)
+		fmt.Fprintf(&table, "  %s  |  Updated %s\r\n\r\n", detailsText, last)
 	}
-	setText(a.controls[ctrlStatusText], b.String())
+	setText(a.controls[ctrlStatusText], table.String())
 	setText(a.controls[ctrlEventText], strings.Join(events, "\r\n"))
+
 	total := time.Duration(0)
-	for _, o := range outages {
-		total += o.End.Sub(o.Start)
+	for _, outage := range outages {
+		total += outage.End.Sub(outage.Start)
 	}
 	activeText := ""
 	if active != nil {
 		activeText = " | " + tr(lang, "active_outage")
 	}
-	state := tr(lang, "monitor_stopped")
-	if monitoring {
-		state = tr(lang, "monitor_running")
+	quality := calculateRollingMetrics(combinedInternet, metricSince)
+	qualityText := "Waiting for data"
+	if quality.Samples > 0 {
+		qualityText = qualityLabelWithMeaning(quality.QualityLabel)
 	}
-	summary := fmt.Sprintf("%s | %s: %d | %s: %d | %s: %s%s", state, tr(lang, "samples"), resultCount, tr(lang, "outages"), len(outages), tr(lang, "total"), formatDuration(total, lang), activeText)
+	accessText := "Off"
+	if accessEnabled {
+		accessText = "On"
+	}
+	monitoringText := "Off"
+	if monitoring {
+		monitoringText = "On"
+	}
+	summary := fmt.Sprintf("Monitoring: %s | Internet quality: %s | Access Mode: %s | Samples: %d | Outages: %d | Downtime: %s%s", monitoringText, qualityText, accessText, resultCount, len(outages), formatDuration(total, lang), activeText)
 	setText(a.controls[ctrlSummary], summary)
 	procInvalidateRect.Call(uintptr(a.hwnd), 0, 0)
 }
+
+func qualityLabelWithMeaning(label string) string {
+	switch strings.ToLower(strings.TrimSpace(label)) {
+	case "excellent":
+		return "Excellent - stable connection"
+	case "good":
+		return "Good - minor variation"
+	case "fair":
+		return "Fair - noticeable variation"
+	case "poor":
+		return "Poor - connection problems"
+	case "unstable":
+		return "Unstable - severe problems"
+	default:
+		return "Waiting for data"
+	}
+}
+
 func drawText(hdc syscall.Handle, x, y int32, text string, color uintptr) {
 	procSetTextColor.Call(uintptr(hdc), color)
 	procSetBkMode.Call(uintptr(hdc), TRANSPARENT)
@@ -2504,14 +2713,24 @@ func (a *App) drawGraph(hdc syscall.Handle, client RECT) {
 	a.mu.RLock()
 	darkTheme := isDarkTheme(a.config.Theme)
 	lang := a.config.Language
+	graphRange := normalizeGraphRange(a.config.GraphRangeMinutes)
 	targets := append([]Target(nil), a.targets...)
 	history := make(map[string][]Sample, len(a.history))
+	now := time.Now()
+	rangeDuration := graphRangeDuration(graphRange)
+	since := now.Add(-rangeDuration)
 	for host, samples := range a.history {
-		history[host] = append([]Sample(nil), samples...)
+		filtered := make([]Sample, 0, len(samples))
+		for _, sample := range samples {
+			if !sample.Time.Before(since) {
+				filtered = append(filtered, sample)
+			}
+		}
+		history[host] = downsampleSamples(filtered, 1200)
 	}
 	a.mu.RUnlock()
 
-	graph := RECT{430, 82, client.Right - 10, 332}
+	_, graph, _, _ := mainContentGeometry(client.Right, client.Bottom)
 	if graph.Right <= graph.Left+100 {
 		return
 	}
@@ -2544,14 +2763,12 @@ func (a *App) drawGraph(hdc syscall.Handle, client RECT) {
 	} else if availableW >= 820 {
 		legendCols = 3
 	}
+	legendRowHeight := int32(34)
 	legendRows := 0
 	if len(legendTargets) > 0 {
 		legendRows = (len(legendTargets) + legendCols - 1) / legendCols
 	}
-	marginB := int32(30)
-	if needed := int32(12 + legendRows*18); needed > marginB {
-		marginB = needed
-	}
+	marginB := int32(34) + int32(legendRows)*legendRowHeight
 
 	plotW := graph.Right - graph.Left - marginL - marginR
 	plotH := graph.Bottom - graph.Top - marginT - marginB
@@ -2590,15 +2807,14 @@ func (a *App) drawGraph(hdc syscall.Handle, client RECT) {
 		pen, _, _ := procCreatePen.Call(PS_SOLID, 2, palette[index%len(palette)])
 		oldPen, _, _ := procSelectObject.Call(uintptr(hdc), pen)
 		started := false
-		denominator := maxHistory - 1
-		if len(samples) > 1 {
-			denominator = len(samples) - 1
-		}
-		if denominator < 1 {
-			denominator = 1
-		}
-		for n, sample := range samples {
-			x := graph.Left + marginL + int32(float64(plotW)*float64(n)/float64(denominator))
+		for _, sample := range samples {
+			position := sample.Time.Sub(since).Seconds() / rangeDuration.Seconds()
+			if position < 0 {
+				position = 0
+			} else if position > 1 {
+				position = 1
+			}
+			x := graph.Left + marginL + int32(float64(plotW)*position)
 			if sample.Success {
 				y := graph.Top + marginT + int32(float64(plotH)*(1-minFloat(sample.Latency, maxLatency)/maxLatency))
 				if !started {
@@ -2621,14 +2837,22 @@ func (a *App) drawGraph(hdc syscall.Handle, client RECT) {
 		procDeleteObject.Call(pen)
 	}
 
+	axisY := graph.Top + marginT + plotH + 3
+	startLabel := formatGraphAxisTime(since, graphRange)
+	middleLabel := formatGraphAxisTime(since.Add(rangeDuration/2), graphRange)
+	endLabel := formatGraphAxisTime(now, graphRange)
+	drawTextClipped(hdc, RECT{graph.Left + marginL, axisY, graph.Left + marginL + 150, axisY + 18}, startLabel, axisColor, DT_LEFT|DT_VCENTER|DT_SINGLELINE)
+	drawTextClipped(hdc, RECT{graph.Left + marginL + plotW/2 - 75, axisY, graph.Left + marginL + plotW/2 + 75, axisY + 18}, middleLabel, axisColor, DT_CENTER|DT_VCENTER|DT_SINGLELINE)
+	drawTextClipped(hdc, RECT{graph.Right - marginR - 150, axisY, graph.Right - marginR, axisY + 18}, endLabel, axisColor, DT_RIGHT|DT_VCENTER|DT_SINGLELINE)
+
 	if len(legendTargets) > 0 {
 		cellW := plotW / int32(legendCols)
-		legendTop := graph.Bottom - int32(legendRows*18) - 4
+		legendTop := axisY + 20
 		for index, target := range legendTargets {
 			col := index % legendCols
 			row := index / legendCols
 			left := graph.Left + marginL + int32(col)*cellW
-			top := legendTop + int32(row)*18
+			top := legendTop + int32(row)*legendRowHeight
 			right := left + cellW - 8
 			colorIndex := 0
 			for originalIndex, originalTarget := range targets {
@@ -2642,13 +2866,13 @@ func (a *App) drawGraph(hdc syscall.Handle, client RECT) {
 			procRectangle.Call(uintptr(hdc), uintptr(left), uintptr(top+2), uintptr(left+11), uintptr(top+13))
 			procSelectObject.Call(uintptr(hdc), oldBrush)
 			procDeleteObject.Call(legendBrush)
-			textRect := RECT{left + 16, top - 1, right, top + 17}
-			drawTextClipped(hdc, textRect, target.Name+" ("+target.Host+")", legendColor, DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS)
+			textRect := RECT{left + 16, top - 1, right, top + legendRowHeight - 1}
+			drawTextClipped(hdc, textRect, target.Name+" ("+target.Host+")", legendColor, DT_LEFT|DT_VCENTER|DT_WORDBREAK)
 		}
 	}
 
-	failRect := RECT{graph.Right - 235, graph.Top + 2, graph.Right - 12, graph.Top + 22}
-	drawTextClipped(hdc, failRect, tr(lang, "graph_fail"), rgb(255, 138, 138), DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS)
+	failRect := RECT{graph.Right - 330, graph.Top + 2, graph.Right - 12, graph.Top + 22}
+	drawTextClipped(hdc, failRect, tr(lang, "graph_fail")+" | "+graphRangeLabel(graphRange), rgb(255, 138, 138), DT_RIGHT|DT_VCENTER|DT_SINGLELINE)
 }
 
 func openSettings(a *App) {
@@ -2688,9 +2912,9 @@ func openSettings(a *App) {
 		}
 	}
 
-	const dialogWidth = 640
-	const dialogHeight = 610
-	style := uint32(WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN)
+	const dialogWidth = 940
+	const dialogHeight = 940
+	style := uint32(WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN)
 	exStyle := uint32(WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT)
 	hwnd, _, createErr := procCreateWindowExW.Call(
 		uintptr(exStyle),
@@ -2725,7 +2949,14 @@ func openSettings(a *App) {
 func (s *SettingsWindow) buildControls() {
 	a := s.parent
 	lang := "en"
-	s.controls[setLabelTheme] = createControl(s.hwnd, "STATIC", tr(lang, "theme"), WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelTheme)
+	s.titleFont = createUIFont(-28, FW_BOLD)
+	s.subtitleFont = createUIFont(-14, FW_NORMAL)
+	s.sectionFont = createUIFont(-16, FW_SEMIBOLD)
+	s.bodyFont = createUIFont(-15, FW_NORMAL)
+	s.smallFont = createUIFont(-13, FW_NORMAL)
+	s.buttonFont = createUIFont(-15, FW_SEMIBOLD)
+
+	s.controls[setLabelTheme] = createControl(s.hwnd, "STATIC", "Appearance theme", WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelTheme)
 	s.controls[setTheme] = createControl(s.hwnd, "COMBOBOX", "", WS_CHILD|WS_VISIBLE|WS_TABSTOP|WS_VSCROLL|CBS_DROPDOWNLIST, setTheme)
 	comboAdd(s.controls[setTheme], tr(lang, "theme_light"))
 	comboAdd(s.controls[setTheme], tr(lang, "theme_dark"))
@@ -2734,89 +2965,115 @@ func (s *SettingsWindow) buildControls() {
 	} else {
 		comboSet(s.controls[setTheme], 0)
 	}
-	s.controls[setLabelInterval] = createControl(s.hwnd, "STATIC", tr(lang, "interval"), WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelInterval)
+	s.controls[setLabelInterval] = createControl(s.hwnd, "STATIC", "Monitoring interval (seconds)", WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelInterval)
 	s.controls[setInterval] = createControl(s.hwnd, "EDIT", strconv.FormatFloat(a.config.Interval, 'f', 1, 64), WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|ES_LEFT, setInterval)
-	s.controls[setLabelTimeout] = createControl(s.hwnd, "STATIC", tr(lang, "timeout"), WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelTimeout)
+	s.controls[setLabelTimeout] = createControl(s.hwnd, "STATIC", "Request timeout (milliseconds)", WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelTimeout)
 	s.controls[setTimeout] = createControl(s.hwnd, "EDIT", strconv.Itoa(a.config.TimeoutMS), WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|ES_LEFT, setTimeout)
-	s.controls[setLabelLatency] = createControl(s.hwnd, "STATIC", tr(lang, "high_latency_label"), WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelLatency)
+	s.controls[setLabelLatency] = createControl(s.hwnd, "STATIC", "High-latency warning threshold (milliseconds)", WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelLatency)
 	s.controls[setLatency] = createControl(s.hwnd, "EDIT", strconv.FormatFloat(a.config.HighLatencyMS, 'f', 0, 64), WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|ES_LEFT, setLatency)
-	s.controls[setLabelConfirm] = createControl(s.hwnd, "STATIC", tr(lang, "confirm_label"), WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelConfirm)
+	s.controls[setLabelConfirm] = createControl(s.hwnd, "STATIC", "Checks required to confirm an outage", WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelConfirm)
 	s.controls[setConfirm] = createControl(s.hwnd, "EDIT", strconv.Itoa(a.config.ConfirmCycles), WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|ES_LEFT, setConfirm)
-	s.controls[setAutoStart] = createControl(s.hwnd, "BUTTON", tr(lang, "auto_start"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_AUTOCHECKBOX, setAutoStart)
+	s.controls[setLabelRetention] = createControl(s.hwnd, "STATIC", "Log retention in days (0 keeps all logs)", WS_CHILD|WS_VISIBLE|SS_LEFT, setLabelRetention)
+	s.controls[setRetention] = createControl(s.hwnd, "EDIT", strconv.Itoa(a.config.LogRetentionDays), WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|ES_LEFT, setRetention)
+
+	checkboxStyle := uint32(WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX | BS_MULTILINE)
+	s.controls[setAutoStart] = createControl(s.hwnd, "BUTTON", "Start NetWatcher automatically when Windows starts", checkboxStyle, setAutoStart)
 	setCheck(s.controls[setAutoStart], a.config.AutoStart)
-	s.controls[setStartMinimized] = createControl(s.hwnd, "BUTTON", tr(lang, "start_minimized_tray"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_AUTOCHECKBOX, setStartMinimized)
+	s.controls[setStartMinimized] = createControl(s.hwnd, "BUTTON", "When Windows starts, open NetWatcher only in the notification area", checkboxStyle, setStartMinimized)
 	setCheck(s.controls[setStartMinimized], a.config.StartMinimizedTray)
 	enable(s.controls[setStartMinimized], a.config.AutoStart)
-	s.controls[setAutoMonitor] = createControl(s.hwnd, "BUTTON", tr(lang, "auto_monitor"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_AUTOCHECKBOX, setAutoMonitor)
+	s.controls[setAutoMonitor] = createControl(s.hwnd, "BUTTON", "Start connection monitoring automatically when NetWatcher opens", checkboxStyle, setAutoMonitor)
 	setCheck(s.controls[setAutoMonitor], a.config.AutoMonitor)
-	s.controls[setCloseToTray] = createControl(s.hwnd, "BUTTON", tr(lang, "close_to_tray"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_AUTOCHECKBOX, setCloseToTray)
+	s.controls[setCloseToTray] = createControl(s.hwnd, "BUTTON", "Keep NetWatcher running in the notification area when the window is closed", checkboxStyle, setCloseToTray)
 	setCheck(s.controls[setCloseToTray], a.config.CloseToTray)
-	s.controls[setAutoUpdate] = createControl(s.hwnd, "BUTTON", "Automatically check GitHub for updates", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_AUTOCHECKBOX, setAutoUpdate)
+	s.controls[setAutoUpdate] = createControl(s.hwnd, "BUTTON", "Automatically check GitHub for new NetWatcher releases", checkboxStyle, setAutoUpdate)
 	setCheck(s.controls[setAutoUpdate], a.config.AutoCheckUpdates)
 	enable(s.controls[setAutoUpdate], strings.TrimSpace(githubRepository) != "")
-	s.controls[setOutageNotify] = createControl(s.hwnd, "BUTTON", "Show Windows notifications for outages and recovery", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_AUTOCHECKBOX, setOutageNotify)
+	s.controls[setOutageNotify] = createControl(s.hwnd, "BUTTON", "Show Windows notifications when an outage starts or the connection recovers", checkboxStyle, setOutageNotify)
 	setCheck(s.controls[setOutageNotify], a.config.OutageNotifications)
-	s.controls[setInfo] = createControl(s.hwnd, "STATIC", "NetWatcher uses English for the interface, reports and log messages.", WS_CHILD|WS_VISIBLE|SS_LEFT, setInfo)
-	s.controls[setSave] = createControl(s.hwnd, "BUTTON", tr(lang, "save"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_DEFPUSHBUTTON, setSave)
-	s.controls[setCancel] = createControl(s.hwnd, "BUTTON", tr(lang, "cancel"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, setCancel)
+	s.controls[setSave] = createControl(s.hwnd, "BUTTON", "Save settings", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW, setSave)
+	s.controls[setCancel] = createControl(s.hwnd, "BUTTON", "Cancel", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW, setCancel)
+
+	for id, h := range s.controls {
+		font := s.bodyFont
+		if id == setSave || id == setCancel {
+			font = s.buttonFont
+		}
+		setFont(h, font)
+	}
 }
 func (s *SettingsWindow) layout(width, height int32) {
-	labelX := int32(28)
-	editX := int32(310)
-	move(s.controls[setLabelTheme], labelX, 28, 260, 24)
-	move(s.controls[setTheme], editX, 24, 200, 160)
-	move(s.controls[setLabelInterval], labelX, 72, 260, 24)
-	move(s.controls[setInterval], editX, 68, 110, 26)
-	move(s.controls[setLabelTimeout], labelX, 112, 260, 24)
-	move(s.controls[setTimeout], editX, 108, 110, 26)
-	move(s.controls[setLabelLatency], labelX, 152, 260, 24)
-	move(s.controls[setLatency], editX, 148, 110, 26)
-	move(s.controls[setLabelConfirm], labelX, 192, 260, 24)
-	move(s.controls[setConfirm], editX, 188, 110, 26)
-	move(s.controls[setAutoStart], labelX, 238, width-56, 28)
-	move(s.controls[setStartMinimized], labelX+24, 274, width-80, 28)
-	move(s.controls[setAutoMonitor], labelX, 310, width-56, 28)
-	move(s.controls[setCloseToTray], labelX, 346, width-56, 34)
-	move(s.controls[setAutoUpdate], labelX, 382, width-56, 28)
-	move(s.controls[setOutageNotify], labelX, 416, width-56, 28)
-	move(s.controls[setInfo], labelX, 454, width-56, 38)
-	move(s.controls[setSave], width-194, height-48, 80, 30)
-	move(s.controls[setCancel], width-106, height-48, 80, 30)
+	if width < 880 {
+		width = 880
+	}
+	if height < 840 {
+		height = 840
+	}
+	const margin int32 = 48
+	valueW := int32(210)
+	valueX := width - valueW - margin
+	labelW := valueX - margin - 24
+	if labelW < 360 {
+		labelW = 360
+	}
+
+	monitorRows := []struct {
+		labelID int
+		valueID int
+		y       int32
+	}{
+		{setLabelTheme, setTheme, 146},
+		{setLabelInterval, setInterval, 186},
+		{setLabelTimeout, setTimeout, 226},
+		{setLabelLatency, setLatency, 266},
+		{setLabelConfirm, setConfirm, 306},
+	}
+	for _, row := range monitorRows {
+		moveNoRedraw(s.controls[row.labelID], margin, row.y, labelW, 30)
+		controlHeight := int32(32)
+		if row.valueID == setTheme {
+			controlHeight = 180
+		}
+		moveNoRedraw(s.controls[row.valueID], valueX, row.y-5, valueW, controlHeight)
+	}
+
+	checkW := width - 2*margin
+	moveNoRedraw(s.controls[setAutoStart], margin, 396, checkW, 36)
+	moveNoRedraw(s.controls[setStartMinimized], margin+24, 438, checkW-24, 36)
+	moveNoRedraw(s.controls[setAutoMonitor], margin, 480, checkW, 36)
+	moveNoRedraw(s.controls[setCloseToTray], margin, 522, checkW, 36)
+
+	moveNoRedraw(s.controls[setLabelRetention], margin, 638, labelW, 30)
+	moveNoRedraw(s.controls[setRetention], valueX, 633, valueW, 32)
+	moveNoRedraw(s.controls[setAutoUpdate], margin, 676, checkW, 36)
+	moveNoRedraw(s.controls[setOutageNotify], margin, 718, checkW, 38)
+
+	footerY := height - 58
+	moveNoRedraw(s.controls[setSave], width-322, footerY, 154, 40)
+	moveNoRedraw(s.controls[setCancel], width-156, footerY, 128, 40)
+	redrawLayout(s.hwnd)
 }
+
 func (s *SettingsWindow) applyLanguage() {
-	lang := "en"
-	setText(s.hwnd, tr(lang, "settings_title"))
-	setText(s.controls[setLabelTheme], tr(lang, "theme"))
+	setText(s.hwnd, "NetWatcher Settings")
 	currentTheme := comboGet(s.controls[setTheme])
-	procSendMessageW.Call(uintptr(s.controls[setTheme]), 0x014B, 0, 0)
-	comboAdd(s.controls[setTheme], tr(lang, "theme_light"))
-	comboAdd(s.controls[setTheme], tr(lang, "theme_dark"))
+	procSendMessageW.Call(uintptr(s.controls[setTheme]), CB_RESETCONTENT, 0, 0)
+	comboAdd(s.controls[setTheme], "Light")
+	comboAdd(s.controls[setTheme], "Dark")
 	comboSet(s.controls[setTheme], currentTheme)
-	setText(s.controls[setLabelInterval], tr(lang, "interval"))
-	setText(s.controls[setLabelTimeout], tr(lang, "timeout"))
-	setText(s.controls[setLabelLatency], tr(lang, "high_latency_label"))
-	setText(s.controls[setLabelConfirm], tr(lang, "confirm_label"))
-	setText(s.controls[setAutoStart], tr(lang, "auto_start"))
-	setText(s.controls[setStartMinimized], tr(lang, "start_minimized_tray"))
-	setText(s.controls[setAutoMonitor], tr(lang, "auto_monitor"))
-	setText(s.controls[setCloseToTray], tr(lang, "close_to_tray"))
-	setText(s.controls[setAutoUpdate], "Automatically check GitHub for updates")
-	setText(s.controls[setOutageNotify], "Show Windows notifications for outages and recovery")
-	setText(s.controls[setInfo], "NetWatcher uses English for the interface, reports and log messages.")
-	setText(s.controls[setSave], tr(lang, "save"))
-	setText(s.controls[setCancel], tr(lang, "cancel"))
 }
 func (s *SettingsWindow) save() bool {
 	interval, e1 := strconv.ParseFloat(strings.ReplaceAll(getText(s.controls[setInterval]), ",", "."), 64)
 	timeout, e2 := strconv.Atoi(getText(s.controls[setTimeout]))
 	latency, e3 := strconv.ParseFloat(strings.ReplaceAll(getText(s.controls[setLatency]), ",", "."), 64)
 	confirm, e4 := strconv.Atoi(getText(s.controls[setConfirm]))
+	retention, e5 := strconv.Atoi(getText(s.controls[setRetention]))
 	lang := "en"
 	theme := "light"
 	if comboGet(s.controls[setTheme]) == 1 {
 		theme = "dark"
 	}
-	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || interval < 0.5 || timeout < 200 || latency < 1 || confirm < 1 {
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || e5 != nil || interval < 0.5 || timeout < 200 || latency < 1 || confirm < 1 || retention < 0 || retention > 3650 {
 		messageBoxOwned(s.hwnd, tr(lang, "settings_title"), tr(lang, "settings_invalid"), MB_OK|MB_ICONERROR)
 		return false
 	}
@@ -2828,6 +3085,7 @@ func (s *SettingsWindow) save() bool {
 	a.config.TimeoutMS = timeout
 	a.config.HighLatencyMS = latency
 	a.config.ConfirmCycles = confirm
+	a.config.LogRetentionDays = retention
 	a.config.AutoStart = isChecked(s.controls[setAutoStart])
 	a.config.StartMinimizedTray = isChecked(s.controls[setStartMinimized])
 	a.config.AutoMonitor = isChecked(s.controls[setAutoMonitor])
@@ -2859,16 +3117,38 @@ func settingsProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintp
 			applyControlTheme(h, isDarkTheme(s.parent.config.Theme))
 		}
 		return 0
+	case WM_GETMINMAXINFO:
+		if lParam != 0 {
+			info := (*MINMAXINFO)(unsafe.Pointer(lParam))
+			info.PtMinTrackSize = POINT{X: 900, Y: 900}
+		}
+		return 0
 	case WM_SIZE:
 		s.layout(int32(loword(lParam)), int32(hiword(lParam)))
 		return 0
 	case WM_ERASEBKGND:
 		fillClientBackground(hwnd, syscall.Handle(wParam), isDarkTheme(s.parent.config.Theme))
 		return 1
+	case WM_PAINT:
+		var ps PAINTSTRUCT
+		hdc, _, _ := procBeginPaint.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&ps)))
+		var client RECT
+		procGetClientRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&client)))
+		s.drawSettingsSurface(syscall.Handle(hdc), client)
+		procEndPaint.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&ps)))
+		return 0
 	case WM_CTLCOLORSTATIC, WM_CTLCOLORBTN:
 		return themeControlColor(syscall.Handle(wParam), isDarkTheme(s.parent.config.Theme), false)
 	case WM_CTLCOLOREDIT:
 		return themeControlColor(syscall.Handle(wParam), isDarkTheme(s.parent.config.Theme), true)
+	case WM_DRAWITEM:
+		if lParam != 0 {
+			dis := (*DRAWITEMSTRUCT)(unsafe.Pointer(lParam))
+			if int(dis.CtlID) == setSave || int(dis.CtlID) == setCancel {
+				s.drawSettingsButton(dis)
+				return 1
+			}
+		}
 	case WM_COMMAND:
 		id, notify := int(loword(wParam)), hiword(wParam)
 		if id == setAutoStart && notify == BN_CLICKED {
@@ -2917,6 +3197,7 @@ func settingsProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintp
 		procDestroyWindow.Call(uintptr(hwnd))
 		return 0
 	case WM_DESTROY:
+		s.releaseSettingsFonts()
 		enable(s.parent.hwnd, true)
 		procSetForegroundWindow.Call(uintptr(s.parent.hwnd))
 		globalSettings = nil
@@ -2945,6 +3226,20 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 				postRefresh(a.hwnd)
 			}()
 		}
+		if a.config.AccessAutoStart {
+			go func() {
+				time.Sleep(750 * time.Millisecond)
+				if err := a.startAccessMode(a.config.AccessUseSystemProxy); err != nil {
+					a.addEvent("Access Mode auto-start failed: " + err.Error())
+				}
+			}()
+		}
+		return 0
+	case WM_GETMINMAXINFO:
+		if lParam != 0 {
+			info := (*MINMAXINFO)(unsafe.Pointer(lParam))
+			info.PtMinTrackSize = POINT{X: 1240, Y: 720}
+		}
 		return 0
 	case WM_SIZE:
 		// Clicking the minimize button moves NetWatcher to the notification
@@ -2969,9 +3264,36 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 		return themeControlColor(syscall.Handle(wParam), isDarkTheme(a.config.Theme), false)
 	case WM_CTLCOLOREDIT:
 		return themeControlColor(syscall.Handle(wParam), isDarkTheme(a.config.Theme), true)
+	case WM_DRAWITEM:
+		if lParam != 0 {
+			dis := (*DRAWITEMSTRUCT)(unsafe.Pointer(lParam))
+			if isMainButtonID(int(dis.CtlID)) {
+				a.drawMainButton(dis)
+				return 1
+			}
+		}
 	case WM_COMMAND:
-		if hiword(wParam) == BN_CLICKED {
-			switch int(loword(wParam)) {
+		id, notify := int(loword(wParam)), hiword(wParam)
+		if id == ctrlGraphRange && notify == CBN_SELCHANGE {
+			rangeMinutes := 5
+			switch comboGet(a.controls[ctrlGraphRange]) {
+			case 1:
+				rangeMinutes = 30
+			case 2:
+				rangeMinutes = 60
+			case 3:
+				rangeMinutes = 1440
+			}
+			a.mu.Lock()
+			a.config.GraphRangeMinutes = rangeMinutes
+			cfg := a.config
+			a.mu.Unlock()
+			_ = saveConfig(cfg)
+			procInvalidateRect.Call(uintptr(a.hwnd), 0, 1)
+			return 0
+		}
+		if notify == BN_CLICKED {
+			switch id {
 			case ctrlStart:
 				a.mu.RLock()
 				interval := a.config.Interval
@@ -2991,6 +3313,33 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 					a.refreshCustomTargetCombo("")
 				}
 				a.refreshUI()
+			case ctrlTargets:
+				openTargetManager(a)
+			case ctrlAccess:
+				openAccessWindow(a)
+			case ctrlHistory:
+				path, err := generateOutageHistoryPage(a.logDir)
+				if err != nil {
+					messageBox(appName, "Outage history could not be generated:\n\n"+err.Error(), MB_OK|MB_ICONERROR)
+				} else {
+					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", path).Start()
+				}
+			case ctrlEvidence:
+				days := 7
+				switch comboGet(a.controls[ctrlEvidenceRange]) {
+				case 0:
+					days = 1
+				case 2:
+					days = 30
+				}
+				path, err := generateEvidenceReport(a.logDir, days)
+				if err != nil {
+					messageBox(appName, "Evidence report could not be generated:\n\n"+err.Error(), MB_OK|MB_ICONERROR)
+				} else {
+					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", path).Start()
+					a.addEvent(fmt.Sprintf("%d-day evidence report created: %s", days, path))
+					a.refreshUI()
+				}
 			case ctrlReport:
 				path := a.report()
 				if path == "" {
@@ -3058,6 +3407,7 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 		if a != nil {
 			a.exiting = true
 			a.removeTrayIcon()
+			a.stopAccessMode()
 			a.stopMonitoring(tr(a.config.Language, "app_closed"))
 		}
 		procDestroyWindow.Call(uintptr(hwnd))
@@ -3065,6 +3415,10 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 	case WM_DESTROY:
 		if a != nil {
 			a.removeTrayIcon()
+			if a.buttonFont != 0 {
+				procDeleteObject.Call(uintptr(a.buttonFont))
+				a.buttonFont = 0
+			}
 		}
 		procPostQuitMessage.Call(0)
 		return 0
@@ -3076,7 +3430,7 @@ func runApp(startHidden bool) {
 	globalApp = newApp()
 	globalApp.startHidden = startHidden
 	globalApp.runFirstLaunchQuestions()
-	runWindow("NetWatcherNativeWindow", wndProcCallback, appName+" "+appVersion, 1120, 720, !startHidden)
+	runWindow("NetWatcherNativeWindow", wndProcCallback, appName+" "+appVersion, 1280, 760, !startHidden)
 }
 
 func runWindow(class string, callback uintptr, title string, width, height int, showInitially bool) {

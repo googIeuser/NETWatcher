@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-$VersionMatch = Select-String -Path (Join-Path $Root "main.go") -Pattern 'appVersion\s*=\s*"([^"]+)"'
+$VersionMatch = Select-String -Path (Join-Path $Root "version.go") -Pattern 'appVersion\s*=\s*"([^"]+)"'
 if (-not $VersionMatch) { throw "appVersion was not found." }
 $Version = $VersionMatch.Matches[0].Groups[1].Value
 $Dist = Join-Path $Root "dist"
