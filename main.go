@@ -30,7 +30,7 @@ import (
 
 const (
 	appName    = "NetWatcher"
-	appVersion = "2.1.0"
+	appVersion = "2.1.3"
 
 	WS_OVERLAPPEDWINDOW = 0x00CF0000
 	WS_CAPTION          = 0x00C00000
@@ -61,7 +61,9 @@ const (
 	SS_LEFT   = 0x00000000
 	SS_CENTER = 0x00000001
 
+	CBS_DROPDOWN     = 0x0002
 	CBS_DROPDOWNLIST = 0x0003
+	CBS_AUTOHSCROLL  = 0x0040
 
 	SW_HIDE       = 0
 	SW_SHOW       = 5
@@ -144,12 +146,13 @@ const (
 	RDW_ALLCHILDREN = 0x0080
 	RDW_UPDATENOW   = 0x0100
 
-	CB_GETCURSEL = 0x0147
-	CB_ADDSTRING = 0x0143
-	CB_SETCURSEL = 0x014E
-	BM_GETCHECK  = 0x00F0
-	BM_SETCHECK  = 0x00F1
-	BST_CHECKED  = 1
+	CB_GETCURSEL    = 0x0147
+	CB_ADDSTRING    = 0x0143
+	CB_RESETCONTENT = 0x014B
+	CB_SETCURSEL    = 0x014E
+	BM_GETCHECK     = 0x00F0
+	BM_SETCHECK     = 0x00F1
+	BST_CHECKED     = 1
 
 	ICC_PROGRESS_CLASS = 0x00000020
 	PBM_SETPOS         = WM_USER + 2
@@ -161,7 +164,6 @@ const (
 	ctrlLogs       = 1004
 	ctrlAdd        = 1005
 	ctrlInterval   = 1006
-	ctrlTimeout    = 1007
 	ctrlCustom     = 1008
 	ctrlStatusText = 1009
 	ctrlEventText  = 1010
@@ -169,9 +171,9 @@ const (
 	ctrlSettings   = 1012
 	ctrlStats      = 1013
 	ctrlExport     = 1014
+	ctrlRemove     = 1015
 
 	staticInterval = 2001
-	staticTimeout  = 2002
 	staticCustom   = 2003
 
 	setLanguage       = 5001
@@ -523,15 +525,15 @@ var latencyRe = regexp.MustCompile(`(?i)(?:time|s.re)?\s*[=<]\s*(\d+(?:[\.,]\d+)
 var translations = map[string]map[string]string{
 	"tr": {
 		"start": "▶ İzlemeyi Başlat", "stop": "■ Durdur", "report": "HTML Raporu", "logs": "Log Klasörü", "settings": "⚙ Ayarlar",
-		"interval": "Aralık (sn):", "timeout": "Zaman aşımı (ms):", "custom": "Özel hedef:", "add": "Hedef Ekle",
+		"interval": "Aralık (sn):", "timeout": "Zaman aşımı (ms):", "custom": "Özel hedef:", "add": "Hedef Ekle", "remove": "Hedefi Sil",
 		"target": "Hedef", "address": "Adres", "type": "Tür", "status": "Durum", "latency": "Gecikme", "last": "Son Kontrol",
 		"waiting": "Bekliyor", "online": "Çevrimiçi", "failed": "Başarısız", "internet": "İnternet", "local": "Yerel",
 		"monitor_running": "İzleme çalışıyor", "monitor_stopped": "İzleme durduruldu", "not_started": "İzleme başlatılmadı",
 		"samples": "Oturum örnekleri", "outages": "Kesinti", "total": "Toplam", "active_outage": "Aktif kesinti var",
-		"invalid_values": "Aralık en az 0,5 saniye; zaman aşımı en az 200 ms olmalıdır.", "no_report": "Rapor için henüz ölçüm bulunmuyor.",
+		"invalid_values": "Aralık en az 0,5 saniye; zaman aşımı en az 200 ms olmalıdır.", "invalid_interval": "Aralık en az 0,5 saniye olmalıdır.", "no_report": "Rapor için henüz ölçüm bulunmuyor.",
 		"monitor_started_event": "İzleme başlatıldı.", "monitor_stopped_event": "İzleme durduruldu.",
 		"gateway_missing": "Varsayılan ağ geçidi otomatik bulunamadı. İnternet hedefleri yine izlenecek.",
-		"target_added":    "Özel hedef eklendi", "response_ok": "Yanıt alındı", "ping_error": "Zaman aşımı veya erişim hatası",
+		"target_added":    "Özel hedef eklendi", "target_removed": "Özel hedef silindi", "remove_confirm": "Bu özel hedef silinsin mi?\n\n%s", "select_custom_target": "Silmek için açılır listeden bir özel hedef seçin veya adresini yazın.", "custom_target_not_found": "Bu adres kayıtlı bir özel hedef değil.", "response_ok": "Yanıt alındı", "ping_error": "Zaman aşımı veya erişim hatası",
 		"local_error": "Modem/ağ geçidine erişilemiyor", "isp_error": "Modeme erişim var ancak tüm internet hedefleri başarısız.",
 		"partial_error": "Bazı internet hedefleri başarısız", "high_latency": "Yüksek gecikme", "connection_normal": "Bağlantı normal.",
 		"outage_started": "KESİNTİ BAŞLADI", "outage_ended": "KESİNTİ BİTTİ", "back_normal": "Bağlantı normale döndü.", "state_changed": "Durum değişti.",
@@ -553,15 +555,15 @@ var translations = map[string]map[string]string{
 	},
 	"en": {
 		"start": "▶ Start Monitoring", "stop": "■ Stop", "report": "HTML Report", "logs": "Log Folder", "settings": "⚙ Settings",
-		"interval": "Interval (sec):", "timeout": "Timeout (ms):", "custom": "Custom target:", "add": "Add Target",
+		"interval": "Interval (sec):", "timeout": "Timeout (ms):", "custom": "Custom target:", "add": "Add Target", "remove": "Remove Target",
 		"target": "Target", "address": "Address", "type": "Type", "status": "Status", "latency": "Latency", "last": "Last Check",
 		"waiting": "Waiting", "online": "Online", "failed": "Failed", "internet": "Internet", "local": "Local",
 		"monitor_running": "Monitoring is running", "monitor_stopped": "Monitoring stopped", "not_started": "Monitoring has not started",
 		"samples": "Session samples", "outages": "Outages", "total": "Total", "active_outage": "Active outage",
-		"invalid_values": "Interval must be at least 0.5 seconds and timeout at least 200 ms.", "no_report": "There are no measurements for a report yet.",
+		"invalid_values": "Interval must be at least 0.5 seconds and timeout at least 200 ms.", "invalid_interval": "Interval must be at least 0.5 seconds.", "no_report": "There are no measurements for a report yet.",
 		"monitor_started_event": "Monitoring started.", "monitor_stopped_event": "Monitoring stopped.",
 		"gateway_missing": "The default gateway could not be detected automatically. Internet targets will still be monitored.",
-		"target_added":    "Custom target added", "response_ok": "Reply received", "ping_error": "Request timed out or destination is unreachable",
+		"target_added":    "Custom target added", "target_removed": "Custom target removed", "remove_confirm": "Remove this custom target?\n\n%s", "select_custom_target": "Select a custom target from the drop-down list or enter its address.", "custom_target_not_found": "This address is not a saved custom target.", "response_ok": "Reply received", "ping_error": "Request timed out or destination is unreachable",
 		"local_error": "The modem/default gateway is unreachable", "isp_error": "The modem is reachable but all internet targets failed.",
 		"partial_error": "Some internet targets failed", "high_latency": "High latency", "connection_normal": "Connection is normal.",
 		"outage_started": "OUTAGE STARTED", "outage_ended": "OUTAGE ENDED", "back_normal": "Connection returned to normal.", "state_changed": "Status changed.",
@@ -2026,23 +2028,85 @@ func (a *App) writeOutageLocked(o Outage) {
 	w.Flush()
 	_ = f.Close()
 }
-func (a *App) addCustomTarget(host string) {
+func (a *App) addCustomTarget(host string) bool {
 	host = strings.TrimSpace(host)
 	if host == "" {
-		return
+		return false
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	for _, t := range a.targets {
 		if strings.EqualFold(t.Host, host) {
-			return
+			a.mu.Unlock()
+			return false
 		}
 	}
-	name := "Custom: "
-	a.targets = append(a.targets, Target{name + host, host, "internet"})
+	a.targets = append(a.targets, Target{"Custom: " + host, host, "internet"})
 	a.config.CustomTargets = append(a.config.CustomTargets, host)
-	_ = saveConfig(a.config)
 	a.addEventLocked(tr(a.config.Language, "target_added") + ": " + host)
+	cfg := a.config
+	a.mu.Unlock()
+	_ = saveConfig(cfg)
+	return true
+}
+
+func (a *App) removeCustomTarget(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		messageBox(appName, tr(a.config.Language, "select_custom_target"), MB_OK|MB_ICONINFORMATION)
+		return false
+	}
+
+	a.mu.RLock()
+	lang := a.config.Language
+	found := findCustomTargetIndex(a.config.CustomTargets, host) >= 0
+	a.mu.RUnlock()
+	if !found {
+		messageBox(appName, tr(lang, "custom_target_not_found"), MB_OK|MB_ICONWARNING)
+		return false
+	}
+	if messageBox(appName, fmt.Sprintf(tr(lang, "remove_confirm"), host), MB_YESNO|MB_ICONQUESTION) != IDYES {
+		return false
+	}
+
+	a.mu.Lock()
+	custom, removed := removeCustomTargetValue(a.config.CustomTargets, host)
+	if !removed {
+		a.mu.Unlock()
+		return false
+	}
+	a.config.CustomTargets = custom
+	targets := a.targets[:0]
+	for _, target := range a.targets {
+		if strings.HasPrefix(target.Name, "Custom: ") && strings.EqualFold(target.Host, host) {
+			continue
+		}
+		targets = append(targets, target)
+	}
+	a.targets = targets
+	delete(a.latest, host)
+	delete(a.history, host)
+	a.addEventLocked(tr(a.config.Language, "target_removed") + ": " + host)
+	cfg := a.config
+	a.mu.Unlock()
+	_ = saveConfig(cfg)
+	return true
+}
+
+func (a *App) refreshCustomTargetCombo(text string) {
+	hwnd := a.controls[ctrlCustom]
+	if hwnd == 0 {
+		return
+	}
+	a.mu.RLock()
+	targets := append([]string(nil), a.config.CustomTargets...)
+	a.mu.RUnlock()
+	procSendMessageW.Call(uintptr(hwnd), CB_RESETCONTENT, 0, 0)
+	for _, target := range targets {
+		if strings.TrimSpace(target) != "" {
+			comboAdd(hwnd, target)
+		}
+	}
+	setText(hwnd, text)
 }
 func (a *App) applyAutoStart() {
 	path := currentExe()
@@ -2265,7 +2329,7 @@ func (a *App) report() string {
 	if lang == "en" {
 		htmlLang = "en"
 	}
-	report := fmt.Sprintf(`<!doctype html><html lang="%s"><head><meta charset="utf-8"><title>%s</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#17202a}h1{margin-bottom:4px}.muted{color:#5d6d7e}.card{border:1px solid #d5d8dc;border-radius:10px;padding:16px;margin:16px 0}table{width:100%%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #d5d8dc;padding:8px;text-align:left;font-size:13px}th{background:#f4f6f7}.note{background:#fff7d6;border-left:4px solid #f4c542;padding:12px}@media print{button{display:none}body{margin:14mm}}</style></head><body><button onclick="window.print()">%s</button><h1>%s</h1><div class="muted">%s: %s</div><div class="card"><strong>%s:</strong> %s — %s<br><strong>%s:</strong> %d<br><strong>%s:</strong> %d<br><strong>%s:</strong> %s</div><div class="card"><h2>%s</h2><table><thead><tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>P95</th></tr></thead><tbody>%s</tbody></table></div><div class="card"><h2>%s</h2><table><thead><tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr></thead><tbody>%s</tbody></table></div><div class="note">%s</div></body></html>`, htmlLang, tr(lang, "report_title"), tr(lang, "print_pdf"), tr(lang, "report_title"), tr(lang, "created"), time.Now().Format("2006-01-02 15:04:05"), tr(lang, "measurement_range"), first.Format("2006-01-02 15:04:05"), last.Format("2006-01-02 15:04:05"), tr(lang, "total_samples"), len(a.results), tr(lang, "completed_outages"), len(a.outages), tr(lang, "total_outage"), formatDuration(total, lang), tr(lang, "target_summary"), tr(lang, "target"), tr(lang, "address"), tr(lang, "sample"), tr(lang, "failed"), tr(lang, "packet_loss"), tr(lang, "average"), rows.String(), tr(lang, "outage_events"), tr(lang, "start_time"), tr(lang, "end_time"), tr(lang, "duration"), tr(lang, "class"), tr(lang, "description"), empty, tr(lang, "report_note"))
+	report := fmt.Sprintf(`<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title><style>%s</style></head><body><div class="wrap"><section class="hero"><div class="hero-row"><div><h1>%s</h1><p>%s: %s</p></div><button class="print-button" onclick="window.print()">%s</button></div></section><section class="summary-grid"><div class="metric"><span>%s</span><strong>%s — %s</strong></div><div class="metric"><span>%s</span><strong>%d</strong><small>%s: %d</small></div><div class="metric"><span>%s</span><strong>%s</strong></div></section><section class="card"><h2>%s</h2><div class="table-wrap"><table><thead><tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>P95</th></tr></thead><tbody>%s</tbody></table></div></section><section class="card"><h2>%s</h2><div class="table-wrap"><table><thead><tr><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th></tr></thead><tbody>%s</tbody></table></div></section><div class="note">%s</div></div></body></html>`, htmlLang, tr(lang, "report_title"), reportCSS, tr(lang, "report_title"), tr(lang, "created"), time.Now().Format("2006-01-02 15:04:05"), tr(lang, "print_pdf"), tr(lang, "measurement_range"), first.Format("2006-01-02 15:04:05"), last.Format("2006-01-02 15:04:05"), tr(lang, "total_samples"), len(a.results), tr(lang, "completed_outages"), len(a.outages), tr(lang, "total_outage"), formatDuration(total, lang), tr(lang, "target_summary"), tr(lang, "target"), tr(lang, "address"), tr(lang, "sample"), tr(lang, "failed"), tr(lang, "packet_loss"), tr(lang, "average"), rows.String(), tr(lang, "outage_events"), tr(lang, "start_time"), tr(lang, "end_time"), tr(lang, "duration"), tr(lang, "class"), tr(lang, "description"), empty, tr(lang, "report_note"))
 	path := filepath.Join(a.logDir, "netwatcher_report_"+time.Now().Format("20060102_150405")+".html")
 	if os.WriteFile(path, []byte(report), 0644) != nil {
 		return ""
@@ -2281,13 +2345,15 @@ func (a *App) buildControls() {
 	a.controls[ctrlSettings] = createControl(a.hwnd, "BUTTON", tr(lang, "settings"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlSettings)
 	a.controls[ctrlStats] = createControl(a.hwnd, "BUTTON", "Statistics", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlStats)
 	a.controls[ctrlExport] = createControl(a.hwnd, "BUTTON", "Export ZIP", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlExport)
-	a.controls[staticInterval] = createControl(a.hwnd, "STATIC", tr(lang, "interval"), WS_CHILD|WS_VISIBLE|SS_LEFT, staticInterval)
-	a.controls[staticTimeout] = createControl(a.hwnd, "STATIC", tr(lang, "timeout"), WS_CHILD|WS_VISIBLE|SS_LEFT, staticTimeout)
 	a.controls[staticCustom] = createControl(a.hwnd, "STATIC", tr(lang, "custom"), WS_CHILD|WS_VISIBLE|SS_LEFT, staticCustom)
-	a.controls[ctrlInterval] = createControl(a.hwnd, "EDIT", strconv.FormatFloat(a.config.Interval, 'f', 1, 64), WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|ES_LEFT, ctrlInterval)
-	a.controls[ctrlTimeout] = createControl(a.hwnd, "EDIT", strconv.Itoa(a.config.TimeoutMS), WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|ES_LEFT, ctrlTimeout)
-	a.controls[ctrlCustom] = createControl(a.hwnd, "EDIT", "", WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|ES_LEFT, ctrlCustom)
+	a.controls[ctrlCustom] = createControl(a.hwnd, "COMBOBOX", "", WS_CHILD|WS_VISIBLE|WS_BORDER|WS_TABSTOP|WS_VSCROLL|CBS_DROPDOWN|CBS_AUTOHSCROLL, ctrlCustom)
+	for _, target := range a.config.CustomTargets {
+		if strings.TrimSpace(target) != "" {
+			comboAdd(a.controls[ctrlCustom], target)
+		}
+	}
 	a.controls[ctrlAdd] = createControl(a.hwnd, "BUTTON", tr(lang, "add"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlAdd)
+	a.controls[ctrlRemove] = createControl(a.hwnd, "BUTTON", tr(lang, "remove"), WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, ctrlRemove)
 	a.controls[ctrlStatusText] = createControl(a.hwnd, "EDIT", "", WS_CHILD|WS_VISIBLE|WS_BORDER|ES_MULTILINE|ES_READONLY|WS_VSCROLL, ctrlStatusText)
 	a.controls[ctrlEventText] = createControl(a.hwnd, "EDIT", "", WS_CHILD|WS_VISIBLE|WS_BORDER|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL|WS_VSCROLL, ctrlEventText)
 	a.controls[ctrlSummary] = createControl(a.hwnd, "STATIC", tr(lang, "not_started"), WS_CHILD|WS_VISIBLE|SS_LEFT, ctrlSummary)
@@ -2302,10 +2368,9 @@ func (a *App) applyLanguage() {
 	setText(a.controls[ctrlSettings], tr(lang, "settings"))
 	setText(a.controls[ctrlStats], "Statistics")
 	setText(a.controls[ctrlExport], "Export ZIP")
-	setText(a.controls[staticInterval], tr(lang, "interval"))
-	setText(a.controls[staticTimeout], tr(lang, "timeout"))
 	setText(a.controls[staticCustom], tr(lang, "custom"))
 	setText(a.controls[ctrlAdd], tr(lang, "add"))
+	setText(a.controls[ctrlRemove], tr(lang, "remove"))
 	a.refreshUI()
 }
 func (a *App) applyTheme() {
@@ -2321,18 +2386,15 @@ func (a *App) applyTheme() {
 func (a *App) layout(width, height int32) {
 	move(a.controls[ctrlStart], 10, 10, 145, 30)
 	move(a.controls[ctrlStop], 162, 10, 90, 30)
-	move(a.controls[staticInterval], 270, 16, 82, 20)
-	move(a.controls[ctrlInterval], 354, 12, 48, 25)
-	move(a.controls[staticTimeout], 414, 16, 120, 20)
-	move(a.controls[ctrlTimeout], 536, 12, 65, 25)
 	move(a.controls[ctrlSettings], width-322, 10, 104, 30)
 	move(a.controls[ctrlLogs], width-210, 10, 95, 30)
 	move(a.controls[ctrlReport], width-108, 10, 98, 30)
 	move(a.controls[ctrlStats], width-210, 47, 95, 28)
 	move(a.controls[ctrlExport], width-108, 47, 98, 28)
 	move(a.controls[staticCustom], 10, 52, 85, 20)
-	move(a.controls[ctrlCustom], 98, 48, 205, 25)
+	move(a.controls[ctrlCustom], 98, 48, 205, 180)
 	move(a.controls[ctrlAdd], 310, 47, 95, 28)
+	move(a.controls[ctrlRemove], 411, 47, 105, 28)
 	statusW := int32(410)
 	if width < 900 {
 		statusW = width/2 - 15
@@ -2362,6 +2424,7 @@ func (a *App) refreshUI() {
 	}
 	monitoring := a.monitoring
 	resultCount := len(a.results)
+	customTargetCount := len(a.config.CustomTargets)
 	a.mu.RUnlock()
 
 	// Keep command buttons synchronized with the real monitor state. This is
@@ -2370,6 +2433,7 @@ func (a *App) refreshUI() {
 	startEnabled, stopEnabled := monitorButtonState(monitoring)
 	enable(a.controls[ctrlStart], startEnabled)
 	enable(a.controls[ctrlStop], stopEnabled)
+	enable(a.controls[ctrlRemove], customTargetCount > 0)
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\t%s\t%s\t%s\t%s\t%s\r\n", tr(lang, "target"), tr(lang, "address"), tr(lang, "type"), tr(lang, "status"), tr(lang, "latency"), tr(lang, "last"))
@@ -2775,8 +2839,6 @@ func (s *SettingsWindow) save() bool {
 	_ = saveConfig(cfg)
 	a.applyAutoStart()
 	procPostMessageW.Call(uintptr(a.hwnd), msgSyncTray, 0, 0)
-	setText(a.controls[ctrlInterval], strconv.FormatFloat(interval, 'f', 1, 64))
-	setText(a.controls[ctrlTimeout], strconv.Itoa(timeout))
 	a.applyLanguage()
 	a.applyTheme()
 	messageBoxOwned(s.hwnd, tr(lang, "settings_title"), tr(lang, "settings_saved"), MB_OK|MB_ICONINFORMATION)
@@ -2911,19 +2973,23 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 		if hiword(wParam) == BN_CLICKED {
 			switch int(loword(wParam)) {
 			case ctrlStart:
-				interval, e1 := strconv.ParseFloat(strings.ReplaceAll(getText(a.controls[ctrlInterval]), ",", "."), 64)
-				timeout, e2 := strconv.Atoi(getText(a.controls[ctrlTimeout]))
-				if e1 != nil || e2 != nil || interval < 0.5 || timeout < 200 {
-					messageBox(appName, tr(a.config.Language, "invalid_values"), MB_OK|MB_ICONERROR)
-				} else {
-					a.startMonitoring(interval, timeout)
-					a.refreshUI()
-				}
+				a.mu.RLock()
+				interval := a.config.Interval
+				timeout := a.config.TimeoutMS
+				a.mu.RUnlock()
+				a.startMonitoring(interval, timeout)
+				a.refreshUI()
 			case ctrlStop:
 				a.stopMonitoring(tr(a.config.Language, "user_stopped"))
 			case ctrlAdd:
-				a.addCustomTarget(getText(a.controls[ctrlCustom]))
-				setText(a.controls[ctrlCustom], "")
+				if a.addCustomTarget(getText(a.controls[ctrlCustom])) {
+					a.refreshCustomTargetCombo("")
+				}
+				a.refreshUI()
+			case ctrlRemove:
+				if a.removeCustomTarget(getText(a.controls[ctrlCustom])) {
+					a.refreshCustomTargetCombo("")
+				}
 				a.refreshUI()
 			case ctrlReport:
 				path := a.report()

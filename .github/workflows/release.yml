@@ -11,7 +11,7 @@ on:
       version:
         description: "Release version without the v prefix"
         required: true
-        default: "2.1.0"
+        default: "2.1.3"
 
 permissions:
   contents: write
@@ -34,7 +34,7 @@ jobs:
           } elseif ("${{ github.event_name }}" -eq "workflow_dispatch") {
             $version = "${{ inputs.version }}".TrimStart("v")
           } else {
-            $version = "2.1.0"
+            $version = "2.1.3"
           }
           $match = Select-String -Path main.go -Pattern 'appVersion\s*=\s*"([^"]+)"'
           $sourceVersion = $match.Matches[0].Groups[1].Value
