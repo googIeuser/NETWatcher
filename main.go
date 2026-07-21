@@ -257,8 +257,6 @@ const (
 	MF_SEPARATOR     = 0x00000800
 	TPM_RIGHTBUTTON  = 0x0002
 	TPM_RETURNCMD    = 0x0100
-
-	maxHistory = 200000
 )
 
 //go:embed assets/app_icon.ico

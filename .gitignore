@@ -20,3 +20,8 @@ Thumbs.db
 # Test output
 coverage.out
 *.test
+
+# Wails migration workspace
+next/frontend/node_modules/
+next/frontend/dist/
+next/build/bin/
