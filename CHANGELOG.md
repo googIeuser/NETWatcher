@@ -1,3 +1,12 @@
+## 3.0.0 - 2026-07-21
+
+- Replaced the manually positioned Win32 interface with a responsive Wails, React and TypeScript frontend.
+- Retained the Go monitoring, metrics, storage, reporting and Windows integration backend.
+- Added stable Dashboard, Statistics, Outage History, Reports, Targets and Settings pages.
+- Added a stable NSIS installer and NetWatcher 3 GitHub Release workflow.
+- Preserved NetWatcher 2.x settings and local log-history compatibility.
+- Access Mode and GoodbyeDPI are not included.
+
 ## 2.2.7 - 2026-07-21
 
 - Removed Access Mode and all related controls, tray commands, proxy startup, and proxy test functionality.
