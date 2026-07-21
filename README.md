@@ -1,10 +1,12 @@
 # NetWatcher
 
-NetWatcher is a lightweight Windows connection monitor and local diagnostics utility. It records latency, jitter, packet loss and outages, separates local-network failures from wider internet failures, and produces modern evidence reports that can be shared with an ISP or regulator.
+NetWatcher is a lightweight Windows connection monitor and local diagnostics utility. It records latency, jitter, packet loss and outages, separates local-network failures from wider internet failures, and produces evidence reports that can be shared with an ISP or regulator.
 
 [Download the latest release](../../releases/latest)
 
-![NetWatcher dark interface](docs/netwatcher-dark.png)
+## NetWatcher 3
+
+NetWatcher 3 uses a responsive Wails + React + TypeScript interface while retaining the local Go monitoring engine. Stable application source is located in `next/`.
 
 ## Features
 
@@ -13,17 +15,19 @@ NetWatcher is a lightweight Windows connection monitor and local diagnostics uti
 - Live latency graph with 5-minute, 30-minute, 1-hour and 24-hour ranges
 - Rolling packet-loss, jitter and connection-quality scoring
 - Local-network, ISP-outage, partial-access and high-latency classification
-- Target Manager for adding, editing, renaming and removing custom targets
-- Modern Statistics, Outage History and ISP Evidence HTML pages
-- 24-hour, 7-day and 30-day evidence-report ranges
-- CSV logs, printable HTML reports and one-click ZIP export
+- Target management with add, edit, rename and remove operations
+- Statistics, Outage History and ISP Evidence reports
+- CSV logs, printable HTML reports and one-click diagnostics ZIP export
 - Configurable automatic log retention
 - Windows outage and recovery notifications
-- Full tray quick menu and start-with-Windows support
+- Native tray menu and start-with-Windows support
+- Turkish and English interface
 - Light and dark themes
 - Automatic GitHub release checks
-- Per-user one-click installation with an integrated uninstaller
+- NSIS installer with WebView2 runtime handling
 - No telemetry, advertising or account requirement
+
+Access Mode and GoodbyeDPI are not included.
 
 ## Custom target formats
 
@@ -40,7 +44,7 @@ A TCP target checks whether a port accepts a connection:
 tcp://example.com:443
 ```
 
-An HTTP or HTTPS target checks an actual web endpoint instead of sending ping:
+An HTTP or HTTPS target checks a web endpoint:
 
 ```text
 https://example.com/health
@@ -54,30 +58,31 @@ Monitoring, statistics and report generation happen locally. NetWatcher does not
 ## Installation
 
 1. Open the [latest release](../../releases/latest).
-2. Download `NetWatcher_Setup_<version>.exe`.
-3. Double-click it and approve the installation.
+2. Download `NetWatcher_Setup_3.0.0.exe`.
+3. Run the installer.
 
-The application installs for the current Windows user. Logs are stored in:
+Settings are stored under `%APPDATA%\NetWatcher`. Logs are stored under:
 
 ```text
 Documents\NetWatcherLogs
 ```
 
-Because community builds may not be code-signed, Windows SmartScreen can show an unknown-publisher warning. Official signed releases can be produced by configuring the signing secrets described in [docs/RELEASING.md](docs/RELEASING.md).
+Community builds may show a Windows SmartScreen unknown-publisher warning when they are not code-signed.
 
 ## Build from source
 
-Requirements: Go 1.23 or newer and Windows 10/11 for runtime testing.
+Requirements: Go 1.23+, Node.js, Wails v2.12.0, WebView2 and Windows 10/11.
 
 ```powershell
-./scripts/build.ps1
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+.\scripts\build-wails.ps1 -Installer
 ```
 
-The output is written to `dist/NetWatcher_Setup_2.2.7.exe`.
+The output is written to `next\build\bin`.
 
 ## Release process
 
-Push a semantic-version tag such as `v2.2.7`, or run the **Release** workflow manually with version `2.2.7`. GitHub Actions tests the project, builds the Windows setup executable, optionally signs it, generates a SHA-256 checksum, and creates a GitHub Release. See [docs/RELEASING.md](docs/RELEASING.md).
+Run the **NetWatcher 3 Stable Release** workflow with version `3.0.0`. It validates the source version, builds the Wails application and NSIS installer, generates SHA-256 verification data and publishes the GitHub Release as the latest stable version.
 
 ## Contributing and security
 

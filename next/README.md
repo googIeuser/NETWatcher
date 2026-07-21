@@ -1,10 +1,10 @@
-# NetWatcher 3.0.0 RC1
+# NetWatcher 3.0.0
 
-This folder contains the feature-complete Wails + React + TypeScript release candidate. The stable 2.2.7 Win32 application remains at the repository root while RC1 is validated on Windows.
+This folder contains the stable Wails + React + TypeScript NetWatcher desktop application. The Go monitoring and diagnostics engine remains local, while the interface is responsive and component based.
 
 ## Included functionality
 
-- Gateway, Cloudflare, Google and custom target monitoring
+- Gateway, Cloudflare, Google and custom-target monitoring
 - Ping, TCP, HTTP and HTTPS checks
 - Responsive live dashboard and 5-minute, 30-minute, 1-hour and 24-hour graph ranges
 - Latency, jitter, packet loss, uptime, P95 and quality scoring
@@ -15,14 +15,14 @@ This folder contains the feature-complete Wails + React + TypeScript release can
 - Printable HTML report and ISP evidence report
 - Diagnostics ZIP export and log-folder access
 - Add, edit and remove custom targets
-- Turkish and English UI
+- Turkish and English interface
 - Light and dark themes
 - Log retention
-- Windows outage/recovery notifications
+- Windows outage and recovery notifications
 - Windows startup, start-minimised and close-to-tray behavior
 - Native Windows tray menu
 - Manual and automatic GitHub release checks
-- Wails/NSIS Windows installer workflow
+- Wails/NSIS Windows installer
 - Existing `%APPDATA%\NetWatcher\settings.json` compatibility
 - Existing NetWatcher 2.x `samples_*.csv` and `outages.csv` history import
 
@@ -52,39 +52,12 @@ go test ./internal/...
 go vet ./internal/...
 ```
 
-## Build executable
-
-From the repository root:
-
-```powershell
-.\scripts\build-wails.ps1
-```
-
-The executable is written to `next\build\bin`.
-
 ## Build installer
 
-Install NSIS and run:
+From the repository root:
 
 ```powershell
 .\scripts\build-wails.ps1 -Installer
 ```
 
-The installer is written to `next\build\bin`. The installer preserves `%APPDATA%\NetWatcher` settings and `Documents\NetWatcherLogs` when uninstalling.
-
-## Manual Windows RC checklist
-
-1. Start and stop monitoring; verify Gateway, Cloudflare and Google updates.
-2. Resize the window from the minimum size through maximised mode at the Windows DPI scale in use.
-3. Add, edit and remove Ping, TCP and HTTPS targets.
-4. Verify 5m, 30m, 1h and 24h graphs after restarting the app.
-5. Open Statistics and Outage History for every available range.
-6. Generate standard HTML, ISP evidence and diagnostics ZIP exports.
-7. Verify light/dark mode and Turkish/English text.
-8. Test close-to-tray, tray open/start/stop/logs/exit and Windows startup.
-9. Test outage/recovery notifications.
-10. Install and uninstall the NSIS package; confirm settings and logs are retained.
-
-## Automated validation completed
-
-The React production build, focused Go tests, legacy 2.x log compatibility tests, race-enabled storage/config/statistics tests, Go vet and a Windows/amd64 source compile check passed in the preparation environment. The actual Wails window, WebView2, tray, notifications and NSIS installer still require the manual Windows checklist above.
+The installer is written to `next\build\bin`. Uninstalling preserves `%APPDATA%\NetWatcher` settings and `Documents\NetWatcherLogs`.
