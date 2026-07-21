@@ -11,7 +11,7 @@ func mainButtonWindowStyle() uint32 {
 func isMainButtonID(id int) bool {
 	switch id {
 	case ctrlStart, ctrlStop, ctrlReport, ctrlLogs, ctrlSettings, ctrlStats,
-		ctrlExport, ctrlHistory, ctrlEvidence, ctrlAccess, ctrlAdd, ctrlRemove, ctrlTargets:
+		ctrlExport, ctrlHistory, ctrlEvidence, ctrlAdd, ctrlRemove, ctrlTargets:
 		return true
 	default:
 		return false
@@ -19,7 +19,7 @@ func isMainButtonID(id int) bool {
 }
 
 func isPrimaryMainButton(id int) bool {
-	return id == ctrlStart || id == ctrlAccess
+	return id == ctrlStart
 }
 
 func isAccentMainButton(id int) bool {

@@ -175,7 +175,6 @@ const (
 	ctrlHistory       = 1017
 	ctrlEvidence      = 1018
 	ctrlGraphRange    = 1019
-	ctrlAccess        = 1020
 	ctrlEvidenceRange = 1021
 
 	staticInterval = 2001
@@ -244,7 +243,6 @@ const (
 	trayHistoryID     = 7107
 	trayLogsID        = 7108
 	trayExportID      = 7109
-	trayAccessID      = 7110
 
 	NIM_ADD     = 0x00000000
 	NIM_MODIFY  = 0x00000001
@@ -431,60 +429,49 @@ type BROWSEINFO struct {
 }
 
 type Config struct {
-	Language               string   `json:"language"`
-	Theme                  string   `json:"theme"`
-	Interval               float64  `json:"interval_seconds"`
-	TimeoutMS              int      `json:"timeout_ms"`
-	HighLatencyMS          float64  `json:"high_latency_ms"`
-	ConfirmCycles          int      `json:"confirm_cycles"`
-	AutoStart              bool     `json:"start_with_windows"`
-	StartMinimizedTray     bool     `json:"start_minimized_to_notification_area"`
-	AutoMonitor            bool     `json:"start_monitoring_automatically"`
-	CloseToTray            bool     `json:"keep_running_in_tray_on_close"`
-	AutoCheckUpdates       bool     `json:"automatically_check_for_updates"`
-	OutageNotifications    bool     `json:"show_outage_notifications"`
-	FirstRunComplete       bool     `json:"first_run_setup_completed"`
-	CustomTargets          []string `json:"custom_targets"`
-	GraphRangeMinutes      int      `json:"graph_range_minutes"`
-	LogRetentionDays       int      `json:"log_retention_days"`
-	AccessPort             int      `json:"access_proxy_port"`
-	AccessFragmentSize     int      `json:"access_fragment_size"`
-	AccessUseSystemProxy   bool     `json:"access_use_system_proxy"`
-	AccessAutoStart        bool     `json:"access_auto_start"`
-	AccessProxyOwned       bool     `json:"access_proxy_owned"`
-	AccessPreviousEnabled  bool     `json:"access_previous_proxy_enabled"`
-	AccessPreviousServer   string   `json:"access_previous_proxy_server"`
-	AccessPreviousOverride string   `json:"access_previous_proxy_override"`
+	Language            string   `json:"language"`
+	Theme               string   `json:"theme"`
+	Interval            float64  `json:"interval_seconds"`
+	TimeoutMS           int      `json:"timeout_ms"`
+	HighLatencyMS       float64  `json:"high_latency_ms"`
+	ConfirmCycles       int      `json:"confirm_cycles"`
+	AutoStart           bool     `json:"start_with_windows"`
+	StartMinimizedTray  bool     `json:"start_minimized_to_notification_area"`
+	AutoMonitor         bool     `json:"start_monitoring_automatically"`
+	CloseToTray         bool     `json:"keep_running_in_tray_on_close"`
+	AutoCheckUpdates    bool     `json:"automatically_check_for_updates"`
+	OutageNotifications bool     `json:"show_outage_notifications"`
+	FirstRunComplete    bool     `json:"first_run_setup_completed"`
+	CustomTargets       []string `json:"custom_targets"`
+	GraphRangeMinutes   int      `json:"graph_range_minutes"`
+	LogRetentionDays    int      `json:"log_retention_days"`
 }
 
 type App struct {
-	hwnd                syscall.Handle
-	controls            map[int]syscall.Handle
-	mu                  sync.RWMutex
-	targets             []Target
-	latest              map[string]PingResult
-	history             map[string][]Sample
-	events              []string
-	results             []PingResult
-	outages             []Outage
-	active              *Outage
-	pendingState        string
-	pendingCount        int
-	monitoring          bool
-	stopCh              chan struct{}
-	logDir              string
-	config              Config
-	trayAdded           bool
-	trayIcon            syscall.Handle
-	trayMu              sync.Mutex
-	startHidden         bool
-	exiting             bool
-	notificationQueue   []TrayNotification
-	pendingUpdateURL    string
-	accessProxy         *AccessProxy
-	accessProxyEnabled  bool
-	accessProxyPrevious *SystemProxyState
-	buttonFont          syscall.Handle
+	hwnd              syscall.Handle
+	controls          map[int]syscall.Handle
+	mu                sync.RWMutex
+	targets           []Target
+	latest            map[string]PingResult
+	history           map[string][]Sample
+	events            []string
+	results           []PingResult
+	outages           []Outage
+	active            *Outage
+	pendingState      string
+	pendingCount      int
+	monitoring        bool
+	stopCh            chan struct{}
+	logDir            string
+	config            Config
+	trayAdded         bool
+	trayIcon          syscall.Handle
+	trayMu            sync.Mutex
+	startHidden       bool
+	exiting           bool
+	notificationQueue []TrayNotification
+	pendingUpdateURL  string
+	buttonFont        syscall.Handle
 }
 
 type SettingsWindow struct {
@@ -755,7 +742,7 @@ func normalizeTheme(theme string) string {
 	return "light"
 }
 func defaultConfig() Config {
-	return Config{Language: defaultLanguage(), Theme: "light", Interval: 2, TimeoutMS: 1500, HighLatencyMS: 150, ConfirmCycles: 2, StartMinimizedTray: true, AutoCheckUpdates: true, OutageNotifications: true, GraphRangeMinutes: 5, LogRetentionDays: 30, AccessPort: 8079, AccessFragmentSize: 1}
+	return Config{Language: defaultLanguage(), Theme: "light", Interval: 2, TimeoutMS: 1500, HighLatencyMS: 150, ConfirmCycles: 2, StartMinimizedTray: true, AutoCheckUpdates: true, OutageNotifications: true, GraphRangeMinutes: 5, LogRetentionDays: 30}
 }
 func loadConfig() Config {
 	cfg := defaultConfig()
@@ -780,12 +767,6 @@ func loadConfig() Config {
 	cfg.GraphRangeMinutes = normalizeGraphRange(cfg.GraphRangeMinutes)
 	if cfg.LogRetentionDays < 0 {
 		cfg.LogRetentionDays = 30
-	}
-	if cfg.AccessPort < 1 || cfg.AccessPort > 65535 {
-		cfg.AccessPort = 8079
-	}
-	if cfg.AccessFragmentSize < 1 || cfg.AccessFragmentSize > 64 {
-		cfg.AccessFragmentSize = 1
 	}
 	return cfg
 }
@@ -1759,8 +1740,8 @@ func runUninstaller() {
 // ----------------------------- Application -----------------------------
 
 func newApp() *App {
+	recoverStaleSystemProxy()
 	cfg := loadConfig()
-	recoverStaleSystemProxy(&cfg)
 	a := &App{controls: map[int]syscall.Handle{}, latest: map[string]PingResult{}, history: map[string][]Sample{}, stopCh: make(chan struct{}), logDir: documentsDir(), config: cfg}
 	if restored, err := readGraphHistory(a.logDir, time.Now().Add(-24*time.Hour)); err == nil {
 		a.history = restored
@@ -2235,18 +2216,12 @@ func (a *App) showTrayMenu() {
 	defer procDestroyMenu.Call(menu)
 	a.mu.RLock()
 	monitoring := a.monitoring
-	accessEnabled := a.accessProxyEnabled
 	a.mu.RUnlock()
 	procAppendMenuW.Call(menu, MF_STRING, trayOpenID, uintptr(unsafe.Pointer(ptr("Open NetWatcher"))))
 	if monitoring {
 		procAppendMenuW.Call(menu, MF_STRING, trayStopID, uintptr(unsafe.Pointer(ptr("Stop Monitoring"))))
 	} else {
 		procAppendMenuW.Call(menu, MF_STRING, trayStartID, uintptr(unsafe.Pointer(ptr("Start Monitoring"))))
-	}
-	if accessEnabled {
-		procAppendMenuW.Call(menu, MF_STRING, trayAccessID, uintptr(unsafe.Pointer(ptr("Stop Access Mode"))))
-	} else {
-		procAppendMenuW.Call(menu, MF_STRING, trayAccessID, uintptr(unsafe.Pointer(ptr("Start Access Mode"))))
 	}
 	procAppendMenuW.Call(menu, MF_SEPARATOR, 0, 0)
 	procAppendMenuW.Call(menu, MF_STRING, trayStatsID, uintptr(unsafe.Pointer(ptr("Statistics"))))
@@ -2273,8 +2248,6 @@ func (a *App) showTrayMenu() {
 		postRefresh(a.hwnd)
 	case trayStopID:
 		a.stopMonitoring(tr(a.config.Language, "user_stopped"))
-	case trayAccessID:
-		a.toggleAccessMode()
 	case trayStatsID:
 		if path, err := generateStatisticsPage(a.logDir); err == nil {
 			_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", path).Start()
@@ -2294,7 +2267,6 @@ func (a *App) showTrayMenu() {
 	case trayExitID:
 		a.exiting = true
 		a.removeTrayIcon()
-		a.stopAccessMode()
 		a.stopMonitoring(tr(a.config.Language, "app_closed"))
 		procDestroyWindow.Call(uintptr(a.hwnd))
 	}
@@ -2420,7 +2392,6 @@ func (a *App) buildControls() {
 	a.controls[ctrlExport] = createControl(a.hwnd, "BUTTON", "Export ZIP", buttonStyle, ctrlExport)
 	a.controls[ctrlHistory] = createControl(a.hwnd, "BUTTON", "Outage History", buttonStyle, ctrlHistory)
 	a.controls[ctrlEvidence] = createControl(a.hwnd, "BUTTON", "Evidence Report", buttonStyle, ctrlEvidence)
-	a.controls[ctrlAccess] = createControl(a.hwnd, "BUTTON", "Access Mode", buttonStyle, ctrlAccess)
 	a.controls[staticGraph] = createControl(a.hwnd, "STATIC", "Graph:", WS_CHILD|WS_VISIBLE|SS_LEFT, staticGraph)
 	a.controls[ctrlGraphRange] = createControl(a.hwnd, "COMBOBOX", "", WS_CHILD|WS_VISIBLE|WS_TABSTOP|WS_VSCROLL|CBS_DROPDOWNLIST, ctrlGraphRange)
 	for _, value := range []string{"5 minutes", "30 minutes", "1 hour", "24 hours"} {
@@ -2467,7 +2438,6 @@ func (a *App) applyLanguage() {
 	setText(a.controls[ctrlExport], "Export ZIP")
 	setText(a.controls[ctrlHistory], "Outage History")
 	setText(a.controls[ctrlEvidence], "Evidence Report")
-	setText(a.controls[ctrlAccess], "Access Mode")
 	setText(a.controls[ctrlTargets], "Target Manager")
 	setText(a.controls[staticGraph], "Graph:")
 	setText(a.controls[staticCustom], tr(lang, "custom"))
@@ -2538,7 +2508,6 @@ func (a *App) layout(width, height int32) {
 	moveNoRedraw(a.controls[ctrlRemove], 389, 47, 108, 32)
 	moveNoRedraw(a.controls[ctrlTargets], 505, 47, 116, 32)
 
-	moveNoRedraw(a.controls[ctrlAccess], right1, 47, actionW, actionH)
 	moveNoRedraw(a.controls[ctrlStats], right2, 47, actionW, actionH)
 	moveNoRedraw(a.controls[ctrlExport], right3, 47, actionW, actionH)
 	moveNoRedraw(a.controls[ctrlHistory], right1, 85, actionW, actionH)
@@ -2583,19 +2552,12 @@ func (a *App) refreshUI() {
 	monitoring := a.monitoring
 	resultCount := len(a.results)
 	customTargetCount := len(a.config.CustomTargets)
-	accessEnabled := a.accessProxyEnabled
 	a.mu.RUnlock()
 
 	startEnabled, stopEnabled := monitorButtonState(monitoring)
 	enable(a.controls[ctrlStart], startEnabled)
 	enable(a.controls[ctrlStop], stopEnabled)
 	enable(a.controls[ctrlRemove], customTargetCount > 0)
-	if accessEnabled {
-		setText(a.controls[ctrlAccess], "Access: On")
-	} else {
-		setText(a.controls[ctrlAccess], "Access Mode")
-	}
-
 	var table strings.Builder
 	table.WriteString("CONNECTION STATUS - LAST 5 MINUTES\r\n")
 	table.WriteString("Quality combines response time, packet loss and connection stability.\r\n\r\n")
@@ -2652,15 +2614,11 @@ func (a *App) refreshUI() {
 	if quality.Samples > 0 {
 		qualityText = qualityLabelWithMeaning(quality.QualityLabel)
 	}
-	accessText := "Off"
-	if accessEnabled {
-		accessText = "On"
-	}
 	monitoringText := "Off"
 	if monitoring {
 		monitoringText = "On"
 	}
-	summary := fmt.Sprintf("Monitoring: %s | Internet quality: %s | Access Mode: %s | Samples: %d | Outages: %d | Downtime: %s%s", monitoringText, qualityText, accessText, resultCount, len(outages), formatDuration(total, lang), activeText)
+	summary := fmt.Sprintf("Monitoring: %s | Internet quality: %s | Samples: %d | Outages: %d | Downtime: %s%s", monitoringText, qualityText, resultCount, len(outages), formatDuration(total, lang), activeText)
 	setText(a.controls[ctrlSummary], summary)
 	procInvalidateRect.Call(uintptr(a.hwnd), 0, 0)
 }
@@ -3226,14 +3184,6 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 				postRefresh(a.hwnd)
 			}()
 		}
-		if a.config.AccessAutoStart {
-			go func() {
-				time.Sleep(750 * time.Millisecond)
-				if err := a.startAccessMode(a.config.AccessUseSystemProxy); err != nil {
-					a.addEvent("Access Mode auto-start failed: " + err.Error())
-				}
-			}()
-		}
 		return 0
 	case WM_GETMINMAXINFO:
 		if lParam != 0 {
@@ -3315,8 +3265,6 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 				a.refreshUI()
 			case ctrlTargets:
 				openTargetManager(a)
-			case ctrlAccess:
-				openAccessWindow(a)
 			case ctrlHistory:
 				path, err := generateOutageHistoryPage(a.logDir)
 				if err != nil {
@@ -3407,7 +3355,6 @@ func windowProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr
 		if a != nil {
 			a.exiting = true
 			a.removeTrayIcon()
-			a.stopAccessMode()
 			a.stopMonitoring(tr(a.config.Language, "app_closed"))
 		}
 		procDestroyWindow.Call(uintptr(hwnd))

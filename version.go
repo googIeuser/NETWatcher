@@ -2,5 +2,5 @@ package main
 
 const (
 	appName    = "NetWatcher"
-	appVersion = "2.2.6"
+	appVersion = "2.2.7"
 )

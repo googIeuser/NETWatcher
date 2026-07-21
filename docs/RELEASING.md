@@ -32,6 +32,5 @@ Download the EXE and `.sha256` asset from the GitHub Release, then verify:
 (Get-FileHash .\NetWatcher_Setup_2.2.2.exe -Algorithm SHA256).Hash
 ```
 
-Before announcing a release, test installation, upgrade, uninstall, startup-to-tray, minimize-to-tray, target editing, ping/TCP/HTTPS checks, graph ranges, outage notifications, Statistics, Outage History, Evidence Report, ZIP export, update checking and Access Mode on clean Windows 10 and Windows 11 virtual machines.
+Before announcing a release, test installation, upgrade, uninstall, startup-to-tray, minimize-to-tray, target editing, ping/TCP/HTTPS checks, graph ranges, outage notifications, Statistics, Outage History, Evidence Report, ZIP export, and update checking on clean Windows 10 and Windows 11 virtual machines.
 
-When testing Access Mode, confirm that Windows proxy settings are restored after Stop and after a normal application exit. Also test recovery after forcibly terminating the app while Access Mode owns the proxy.

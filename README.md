@@ -47,22 +47,9 @@ https://example.com/health
 http://192.168.1.10/status
 ```
 
-## Experimental Access Mode
-
-NetWatcher 2.2 includes an optional browser/proxy-aware access mode. It runs a local HTTP CONNECT proxy, resolves destination names through DNS-over-HTTPS, and splits the first bytes of the TLS connection into small writes. The module:
-
-- does **not** use ICMP ping;
-- does **not** install a packet driver;
-- does **not** require administrator rights;
-- is not a VPN and does not change the public IP address;
-- mainly affects browsers and applications that follow the Windows proxy setting;
-- may not work against every DNS, IP, SNI, QUIC or active-DPI blocking method.
-
-The original Windows proxy configuration is saved and restored when Access Mode stops. A stale NetWatcher-owned proxy setting is also recovered on the next launch after an unexpected shutdown. Use this feature only where permitted by applicable law, network policy and service terms.
-
 ## Privacy
 
-Monitoring, statistics and report generation happen locally. NetWatcher does not upload measurements, browsing history, IP addresses or log files. When enabled, update checks contact GitHub's public Releases API. Access Mode sends DNS-over-HTTPS lookups to Cloudflare and then connects directly to the requested destination through the local proxy. See [PRIVACY.md](PRIVACY.md).
+Monitoring, statistics and report generation happen locally. NetWatcher does not upload measurements, IP addresses or log files. When enabled, update checks contact GitHub's public Releases API. See [PRIVACY.md](PRIVACY.md).
 
 ## Installation
 
@@ -86,11 +73,11 @@ Requirements: Go 1.23 or newer and Windows 10/11 for runtime testing.
 ./scripts/build.ps1
 ```
 
-The output is written to `dist/NetWatcher_Setup_2.2.2.exe`.
+The output is written to `dist/NetWatcher_Setup_2.2.7.exe`.
 
 ## Release process
 
-Push a semantic-version tag such as `v2.2.2`, or run the **Release** workflow manually with version `2.2.2`. GitHub Actions tests the project, builds the Windows setup executable, optionally signs it, generates a SHA-256 checksum, and creates a GitHub Release. See [docs/RELEASING.md](docs/RELEASING.md).
+Push a semantic-version tag such as `v2.2.7`, or run the **Release** workflow manually with version `2.2.7`. GitHub Actions tests the project, builds the Windows setup executable, optionally signs it, generates a SHA-256 checksum, and creates a GitHub Release. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Contributing and security
 

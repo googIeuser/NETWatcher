@@ -1,3 +1,9 @@
+## 2.2.7 - 2026-07-21
+
+- Removed Access Mode and all related controls, tray commands, proxy startup, and proxy test functionality.
+- Restores an older NetWatcher-owned Windows proxy setting once during upgrade, then removes the legacy ownership state.
+- Left monitoring, graphs, reports, targets, Settings, notifications, and tray behavior unchanged.
+
 ## 2.2.6
 
 - Widened the Remove Target button so its complete text is visible.
