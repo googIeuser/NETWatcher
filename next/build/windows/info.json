@@ -1,0 +1,18 @@
+{
+  "fixed": {
+    "file_version": "3.0.0.1",
+    "product_version": "3.0.0.1"
+  },
+  "info": {
+    "0409": {
+      "CompanyName": "NetWatcher Contributors",
+      "FileDescription": "NetWatcher connection monitor and diagnostics utility",
+      "FileVersion": "3.0.0 RC 1",
+      "InternalName": "NetWatcher",
+      "LegalCopyright": "Copyright (c) NetWatcher Contributors",
+      "OriginalFilename": "NetWatcher.exe",
+      "ProductName": "NetWatcher",
+      "ProductVersion": "3.0.0 RC 1"
+    }
+  }
+}

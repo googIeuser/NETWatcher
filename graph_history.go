@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const maxHistory = 200000
+
 // readGraphHistory restores the last selected graph window from the local CSV
 // logs. This makes 30-minute, 1-hour and 24-hour ranges show persisted data
 // from previous app sessions instead of only stretching the current session.

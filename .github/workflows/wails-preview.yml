@@ -1,0 +1,64 @@
+name: Wails Release Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - refactor/wails-ui
+    paths:
+      - "next/**"
+      - "scripts/build-wails.ps1"
+      - "WAILS_MIGRATION.md"
+      - "RELEASE_NOTES_3.0.0_RC1.md"
+      - ".github/workflows/wails-preview.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: next/go.mod
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: next/frontend/package-lock.json
+      - name: Install Wails and NSIS
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+          choco install nsis -y --no-progress
+          (Join-Path (go env GOPATH) "bin") | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $nsis = @("C:\Program Files (x86)\NSIS", "C:\Program Files\NSIS") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $nsis) { throw "NSIS installation path was not found." }
+          $nsis | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install and test frontend
+        working-directory: next/frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Prepare Go modules
+        working-directory: next
+        run: go mod tidy
+      - name: Vet and test Go core
+        working-directory: next
+        run: |
+          go vet ./internal/...
+          go test ./internal/...
+      - name: Build Windows executable and installer
+        working-directory: next
+        run: wails build -nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NetWatcher-3.0.0-RC1-Windows
+          path: next/build/bin/*.exe
+          if-no-files-found: error
+          retention-days: 14
