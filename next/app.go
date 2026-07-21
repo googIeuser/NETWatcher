@@ -23,7 +23,7 @@ import (
 	updatecheck "netwatcher/next/internal/update"
 )
 
-const appVersion = "3.0.0-rc.1"
+const appVersion = "3.0.0"
 
 type App struct {
 	ctx                context.Context

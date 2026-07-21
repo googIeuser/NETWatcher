@@ -1,6 +1,6 @@
 # NetWatcher Wails migration
 
-The release-candidate architecture lives in `next/`. The stable NetWatcher 2.2.7 Win32 application remains at the repository root until RC1 is manually approved on Windows.
+The Wails + React + TypeScript migration was approved for the stable NetWatcher 3.0.0 release after Windows validation. The stable application source lives in `next/`; the former Win32 2.2.7 source remains at the repository root for historical compatibility during the transition.
 
 ## Stack
 
@@ -9,37 +9,33 @@ The release-candidate architecture lives in `next/`. The stable NetWatcher 2.2.7
 - React + TypeScript + Vite frontend
 - WebView2 on Windows
 
-## Feature status
+## Stable feature status
 
 | Area | Status |
 | --- | --- |
-| Live dashboard and responsive layout | Implemented |
-| Ping, TCP, HTTP/HTTPS target checks | Implemented |
-| Jitter, packet loss, uptime, P95 and quality score | Implemented |
-| Confirmation cycles and outage classification | Implemented |
-| Version 2 settings and log-history migration | Implemented and tested |
-| CSV logging and retention | Implemented |
-| Statistics and target breakdown | Implemented |
-| Outage History | Implemented |
-| HTML and ISP evidence reports | Implemented |
-| Diagnostics ZIP export | Implemented |
-| Target add/edit/remove | Implemented |
-| Turkish/English and light/dark UI | Implemented |
-| Tray, Windows startup and notifications | Implemented; Windows validation required |
-| Update checks | Implemented |
-| EXE and NSIS installer workflow | Implemented; Windows validation required |
+| Live dashboard and responsive layout | Stable |
+| Ping, TCP, HTTP/HTTPS target checks | Stable |
+| Jitter, packet loss, uptime, P95 and quality score | Stable |
+| Confirmation cycles and outage classification | Stable |
+| Version 2 settings and log-history migration | Stable |
+| CSV logging and retention | Stable |
+| Statistics and target breakdown | Stable |
+| Outage History | Stable |
+| HTML and ISP evidence reports | Stable |
+| Diagnostics ZIP export | Stable |
+| Target add/edit/remove | Stable |
+| Turkish/English and light/dark UI | Stable |
+| Tray, Windows startup and notifications | Stable |
+| Update checks | Stable |
+| EXE and NSIS installer workflow | Stable |
 | Access Mode / GoodbyeDPI | Intentionally absent |
 
 ## Data compatibility
 
 - Settings: `%APPDATA%\NetWatcher\settings.json`
 - Logs: `Documents\NetWatcherLogs`
-- NetWatcher 2.x `samples_*.csv`: read by RC1
-- NetWatcher 2.x `outages.csv`: read but never modified by RC1
+- NetWatcher 2.x `samples_*.csv`: imported
+- NetWatcher 2.x `outages.csv`: read but never modified
 - NetWatcher 3 measurements: `measurements_*.csv`
 - NetWatcher 3 outages: `outages_v3.csv`
 - NetWatcher 3 events: `events_v3.csv`
-
-## Branch and release policy
-
-Development belongs on `refactor/wails-ui`. Do not replace the stable release until RC1 has been tested on Windows for monitoring, resize/DPI behavior, sleep/wake, tray open/exit, startup registration, notification delivery, report generation, legacy history import and installer upgrade/uninstall behavior.

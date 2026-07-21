@@ -7,12 +7,12 @@ Unicode true
 !include "wails_tools.nsh"
 
 # Windows version resources require four numeric components.
-VIProductVersion "3.0.0.1"
-VIFileVersion    "3.0.0.1"
+VIProductVersion "3.0.0.0"
+VIFileVersion    "3.0.0.0"
 VIAddVersionKey "CompanyName"     "${INFO_COMPANYNAME}"
 VIAddVersionKey "FileDescription" "${INFO_PRODUCTNAME} Installer"
-VIAddVersionKey "ProductVersion"  "3.0.0 RC 1"
-VIAddVersionKey "FileVersion"     "3.0.0.1"
+VIAddVersionKey "ProductVersion"  "3.0.0"
+VIAddVersionKey "FileVersion"     "3.0.0"
 VIAddVersionKey "LegalCopyright"  "${INFO_COPYRIGHT}"
 VIAddVersionKey "ProductName"     "${INFO_PRODUCTNAME}"
 
