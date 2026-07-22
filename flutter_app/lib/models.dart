@@ -224,7 +224,7 @@ class NetworkSnapshot {
     this.targets = const [],
     this.recentEvents = const [],
     this.updatedAt = '',
-    this.version = '4.0.1',
+    this.version = '4.0.2',
   });
 
   final bool monitoring;
@@ -262,7 +262,7 @@ class NetworkSnapshot {
           .map(NetworkEvent.fromJson)
           .toList(growable: false),
       updatedAt: json['updatedAt'] as String? ?? '',
-      version: json['version'] as String? ?? '4.0.1',
+      version: json['version'] as String? ?? '4.0.2',
     );
   }
 }
