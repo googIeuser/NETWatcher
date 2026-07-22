@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env,
     fs::{self, OpenOptions},
     path::{Path, PathBuf},
@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
 
 use crate::models::{Event, Measurement, Outage};
@@ -155,9 +155,30 @@ impl Store {
     }
 
     fn parse_time(value: &str) -> Option<DateTime<Utc>> {
-        DateTime::parse_from_rfc3339(value)
-            .ok()
-            .map(|value| value.with_timezone(&Utc))
+        let value = value.trim().trim_start_matches('\u{feff}');
+        if value.is_empty() {
+            return None;
+        }
+        if let Ok(parsed) = DateTime::parse_from_rfc3339(value) {
+            return Some(parsed.with_timezone(&Utc));
+        }
+        for format in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"] {
+            if let Ok(parsed) = NaiveDateTime::parse_from_str(value, format) {
+                return Some(Utc.from_utc_datetime(&parsed));
+            }
+        }
+        None
+    }
+
+    fn normalise_outage_category(value: &str) -> String {
+        let upper = value.trim().to_ascii_uppercase();
+        match upper.as_str() {
+            "LOCAL_NETWORK" | "LOCAL" => "local".to_owned(),
+            "ISP_OUTAGE" | "OFFLINE" => "offline".to_owned(),
+            "DEGRADED" | "HIGH_LATENCY" => "degraded".to_owned(),
+            "PARTIAL" => "partial".to_owned(),
+            other => other.to_ascii_lowercase(),
+        }
     }
 
     pub fn read_measurements(&self, since: DateTime<Utc>) -> Result<Vec<Measurement>> {
@@ -243,6 +264,8 @@ impl Store {
     pub fn read_outages(&self, since: DateTime<Utc>) -> Result<Vec<Outage>> {
         let _guard = self.lock.lock().expect("storage lock poisoned");
         let mut output = Vec::new();
+        let mut seen = HashSet::new();
+
         for name in ["outages.csv", "outages_v3.csv", "outages_v4.csv"] {
             let path = self.dir.join(name);
             if !path.exists() {
@@ -260,7 +283,16 @@ impl Store {
                 if effective_end < &since {
                     continue;
                 }
-                let mut duration = Self::cell(&row, &indexes, "duration_seconds")
+
+                let duration_text = {
+                    let current = Self::cell(&row, &indexes, "duration_seconds");
+                    if current.is_empty() {
+                        Self::cell(&row, &indexes, "duration")
+                    } else {
+                        current
+                    }
+                };
+                let mut duration = duration_text
                     .replace(',', ".")
                     .parse::<f64>()
                     .unwrap_or(0.0);
@@ -269,11 +301,31 @@ impl Store {
                         duration = (end_value.clone() - start.clone()).num_milliseconds() as f64 / 1000.0;
                     }
                 }
+
+                let category = Self::normalise_outage_category(
+                    Self::cell(&row, &indexes, "category"),
+                );
+                let details = Self::cell(&row, &indexes, "details").to_owned();
+                let end_value = end
+                    .as_ref()
+                    .map(|value| value.to_rfc3339())
+                    .unwrap_or_default();
+                let key = format!(
+                    "{}|{}|{}|{}",
+                    start.to_rfc3339(),
+                    end_value,
+                    category,
+                    details
+                );
+                if !seen.insert(key) {
+                    continue;
+                }
+
                 output.push(Outage {
                     start: start.to_rfc3339(),
-                    end: end.as_ref().map(|value| value.to_rfc3339()).unwrap_or_default(),
-                    category: Self::cell(&row, &indexes, "category").to_owned(),
-                    details: Self::cell(&row, &indexes, "details").to_owned(),
+                    end: end_value,
+                    category,
+                    details,
                     duration_seconds: duration.max(0.0),
                     active: end.is_none(),
                 });

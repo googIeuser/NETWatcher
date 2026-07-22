@@ -1,6 +1,6 @@
 ; NetWatcher 4 stable installer
 #ifndef MyAppVersion
-  #define MyAppVersion "4.0.0"
+  #define MyAppVersion "4.0.1"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\flutter_app\build\windows\x64\runner\Release"
@@ -27,6 +27,7 @@ OutputBaseFilename=NetWatcher_Setup_{#MyAppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile={#SourceDir}\data\flutter_assets\assets\app_icon.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin

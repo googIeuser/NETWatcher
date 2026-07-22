@@ -313,35 +313,407 @@ class OutagesPage extends StatelessWidget {
   final AppState state;
 
   @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const _PageHeader(
-            eyebrow: 'HISTORY',
-            title: 'Outage history',
-            subtitle: 'Confirmed incidents will appear here.',
+  Widget build(BuildContext context) {
+    final incidents = state.outages;
+    final activeCount = incidents.where((item) => item.active).length;
+    final totalSeconds = incidents.fold<double>(
+      0,
+      (sum, item) => sum + item.durationSeconds,
+    );
+    final longestSeconds = incidents.fold<double>(
+      0,
+      (longest, item) =>
+          item.durationSeconds > longest ? item.durationSeconds : longest,
+    );
+
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        _PageHeader(
+          eyebrow: 'HISTORY',
+          title: 'Outage history',
+          subtitle:
+              'Review each confirmed incident with its type, start and end time, duration and diagnostic details.',
+          trailing: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: 170,
+                child: DropdownButtonFormField<int>(
+                  key: ValueKey<int>(state.outageRangeDays),
+                  initialValue: state.outageRangeDays,
+                  decoration: const InputDecoration(labelText: 'History range'),
+                  items: const [
+                    DropdownMenuItem(value: 1, child: Text('Last 24 hours')),
+                    DropdownMenuItem(value: 7, child: Text('Last 7 days')),
+                    DropdownMenuItem(value: 30, child: Text('Last 30 days')),
+                    DropdownMenuItem(value: 365, child: Text('Last year')),
+                    DropdownMenuItem(value: 36500, child: Text('All time')),
+                  ],
+                  onChanged: state.outagesLoading
+                      ? null
+                      : (value) => state.refreshOutages(value ?? 30),
+                ),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Refresh outage history',
+                onPressed:
+                    state.outagesLoading ? null : () => state.refreshOutages(),
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
           ),
-          const SizedBox(height: 18),
-          Panel(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 50),
+        ),
+        const SizedBox(height: 18),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 1000
+                ? 4
+                : constraints.maxWidth >= 560
+                    ? 2
+                    : 1;
+            final width =
+                (constraints.maxWidth - (columns - 1) * 12) / columns;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: width,
+                  child: _OutageSummaryCard(
+                    label: 'Incidents',
+                    value: incidents.length.toString(),
+                    icon: Icons.warning_amber_rounded,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _OutageSummaryCard(
+                    label: 'Active now',
+                    value: activeCount.toString(),
+                    icon: Icons.bolt_rounded,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _OutageSummaryCard(
+                    label: 'Total downtime',
+                    value: _formatDuration(totalSeconds),
+                    icon: Icons.timer_outlined,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _OutageSummaryCard(
+                    label: 'Longest incident',
+                    value: _formatDuration(longestSeconds),
+                    icon: Icons.timeline_rounded,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        AnimatedSwitcher(
+          duration: NetWatcherMotion.normal,
+          child: state.outagesLoading && incidents.isEmpty
+              ? const Panel(
+                  key: ValueKey<String>('outages-loading'),
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 42),
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                )
+              : incidents.isEmpty
+                  ? const Panel(
+                      key: ValueKey<String>('outages-empty'),
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 50),
+                          child: Column(
+                            children: [
+                              Icon(Icons.verified_outlined, size: 48),
+                              SizedBox(height: 14),
+                              Text('No confirmed outages in this range.'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  : Column(
+                      key: ValueKey<String>(
+                        'outages-${state.outageRangeDays}-${incidents.length}',
+                      ),
+                      children: [
+                        for (final incident in incidents) ...[
+                          OutageIncidentCard(incident: incident),
+                          const SizedBox(height: 12),
+                        ],
+                      ],
+                    ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OutageSummaryCard extends StatelessWidget {
+  const _OutageSummaryCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Panel(
+        child: Row(
+          children: [
+            Icon(icon, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    value,
+                    overflow: TextOverflow.visible,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class OutageIncidentCard extends StatelessWidget {
+  const OutageIncidentCard({
+    super.key,
+    required this.incident,
+  });
+
+  final OutageRecord incident;
+
+  @override
+  Widget build(BuildContext context) {
+    final appearance = _outageAppearance(incident.category);
+    final statusColor = incident.active
+        ? const Color(0xFFFF6D80)
+        : const Color(0xFF42D99A);
+
+    return Panel(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 720;
+          final heading = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: appearance.color.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(appearance.icon, color: appearance.color),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.verified_outlined, size: 48),
-                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 9,
+                      runSpacing: 7,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          appearance.label,
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: .13),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
+                            child: Text(
+                              incident.active ? 'ACTIVE' : 'RESOLVED',
+                              style: TextStyle(
+                                color: statusColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
                     Text(
-                      state.snapshot.outages == 0
-                          ? 'No confirmed outages.'
-                          : '${state.snapshot.outages} outages recorded.',
+                      incident.details.isEmpty
+                          ? 'No diagnostic description was recorded.'
+                          : incident.details,
+                      overflow: TextOverflow.visible,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
               ),
+            ],
+          );
+
+          final timing = Wrap(
+            spacing: 22,
+            runSpacing: 12,
+            children: [
+              _IncidentValue(
+                label: 'Started',
+                value: _formatDateTime(incident.start),
+              ),
+              _IncidentValue(
+                label: incident.active ? 'Status' : 'Ended',
+                value: incident.active
+                    ? 'Still in progress'
+                    : _formatDateTime(incident.end),
+              ),
+              _IncidentValue(
+                label: 'Duration',
+                value: _formatDuration(incident.durationSeconds),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                heading,
+                const SizedBox(height: 18),
+                timing,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(flex: 3, child: heading),
+              const SizedBox(width: 24),
+              Flexible(flex: 2, child: timing),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _IncidentValue extends StatelessWidget {
+  const _IncidentValue({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 120),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
-          ),
-        ],
+            const SizedBox(height: 5),
+            Text(
+              value,
+              overflow: TextOverflow.visible,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
       );
+}
+
+({String label, IconData icon, Color color}) _outageAppearance(
+  String category,
+) {
+  return switch (category.toLowerCase()) {
+    'local' => (
+        label: 'Local network failure',
+        icon: Icons.router_outlined,
+        color: const Color(0xFFFF6D80),
+      ),
+    'partial' => (
+        label: 'Partial access',
+        icon: Icons.call_split_rounded,
+        color: const Color(0xFFFFBD59),
+      ),
+    'degraded' => (
+        label: 'High latency',
+        icon: Icons.speed_rounded,
+        color: const Color(0xFFFFBD59),
+      ),
+    _ => (
+        label: 'Internet outage',
+        icon: Icons.cloud_off_outlined,
+        color: const Color(0xFFFF6D80),
+      ),
+  };
+}
+
+String _formatDateTime(String value) {
+  final parsed = DateTime.tryParse(value)?.toLocal();
+  if (parsed == null) return value.isEmpty ? '—' : value;
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(parsed.day)}.${two(parsed.month)}.${parsed.year} '
+      '${two(parsed.hour)}:${two(parsed.minute)}:${two(parsed.second)}';
+}
+
+String _formatDuration(double seconds) {
+  final total = seconds.round().clamp(0, 315360000).toInt();
+  final days = total ~/ 86400;
+  final hours = (total % 86400) ~/ 3600;
+  final minutes = (total % 3600) ~/ 60;
+  final remainingSeconds = total % 60;
+  if (days > 0) return '${days}d ${hours}h ${minutes}m';
+  if (hours > 0) return '${hours}h ${minutes}m';
+  if (minutes > 0) return '${minutes}m ${remainingSeconds}s';
+  return '${remainingSeconds}s';
 }
 
 class ReportsPage extends StatefulWidget {

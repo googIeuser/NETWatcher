@@ -1,31 +1,83 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'app_state.dart';
+import 'desktop_tray.dart';
 import 'motion.dart';
 import 'pages.dart';
 import 'theme.dart';
 
-class NetWatcherApp extends StatelessWidget {
-  const NetWatcherApp({super.key, required this.state});
+class NetWatcherApp extends StatefulWidget {
+  const NetWatcherApp({
+    super.key,
+    required this.state,
+    this.tray,
+  });
+
   final AppState state;
+  final DesktopTrayController? tray;
+
+  @override
+  State<NetWatcherApp> createState() => _NetWatcherAppState();
+}
+
+class _NetWatcherAppState extends State<NetWatcherApp> with WindowListener {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.tray != null) {
+      windowManager.addListener(this);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.tray != null) {
+      windowManager.removeListener(this);
+    }
+    super.dispose();
+  }
+
+  @override
+  void onWindowClose() {
+    unawaited(_handleWindowClose());
+  }
+
+  Future<void> _handleWindowClose() async {
+    final tray = widget.tray;
+    if (tray == null) {
+      await widget.state.shutdown();
+      await windowManager.setPreventClose(false);
+      await windowManager.destroy();
+      return;
+    }
+    if (widget.state.config.keepRunningInTrayOnClose) {
+      await tray.hideToTray();
+    } else {
+      await tray.exitApplication();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: state,
+      animation: widget.state,
       builder: (context, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'NetWatcher',
         theme: NetWatcherTheme.light(),
         darkTheme: NetWatcherTheme.dark(),
-        themeMode:
-            state.config.theme == 'light' ? ThemeMode.light : ThemeMode.dark,
+        themeMode: widget.state.config.theme == 'light'
+            ? ThemeMode.light
+            : ThemeMode.dark,
         themeAnimationDuration: NetWatcherMotion.slow,
         themeAnimationCurve: NetWatcherMotion.emphasizedCurve,
-        home: state.loading
+        home: widget.state.loading
             ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-            : AppShell(state: state),
+            : AppShell(state: widget.state),
       ),
     );
   }
@@ -179,7 +231,15 @@ class _DesktopSidebar extends StatelessWidget {
                 mainAxisAlignment:
                     expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
                 children: [
-                  const CircleAvatar(child: Icon(Icons.monitor_heart)),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: Image.asset(
+                      'assets/app_icon.png',
+                      width: 40,
+                      height: 40,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
                   if (expanded) ...[
                     const SizedBox(width: 12),
                     const Expanded(
@@ -209,7 +269,7 @@ class _DesktopSidebar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(18),
               child: Text(
-                expanded ? '4.0.0' : '4.0',
+                expanded ? '4.0.1' : '4.0.1',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.labelSmall,
               ),

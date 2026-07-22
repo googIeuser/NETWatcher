@@ -14,11 +14,16 @@ class AppState extends ChangeNotifier {
   Timer? _pollTimer;
   NetWatcherConfig config = const NetWatcherConfig();
   NetworkSnapshot snapshot = const NetworkSnapshot();
+  List<OutageRecord> outages = const [];
+  int outageRangeDays = 30;
   ReportResult? lastReport;
   bool loading = true;
+  bool outagesLoading = false;
   bool reportBusy = false;
   String? reportNotice;
   String? error;
+  int _outagePollTicks = 0;
+  bool _shuttingDown = false;
 
   static Future<AppState> create() async {
     CoreService service;
@@ -37,6 +42,7 @@ class AppState extends ChangeNotifier {
       await _service.initialise();
       config = await _service.loadSettings();
       snapshot = await _service.snapshot();
+      outages = await _service.getOutages(outageRangeDays);
       _pollTimer = Timer.periodic(
         const Duration(seconds: 1),
         (_) => refreshSnapshot(),
@@ -50,13 +56,44 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> refreshSnapshot() async {
+    if (_shuttingDown) return;
     try {
       snapshot = await _service.snapshot();
+      _outagePollTicks++;
+      if (_outagePollTicks >= 5) {
+        _outagePollTicks = 0;
+        await _refreshOutagesSilently();
+      }
       error = null;
       notifyListeners();
     } catch (exception) {
       error = exception.toString();
       notifyListeners();
+    }
+  }
+
+  Future<void> refreshOutages([int? days]) async {
+    if (_shuttingDown) return;
+    outageRangeDays = days ?? outageRangeDays;
+    outagesLoading = true;
+    error = null;
+    notifyListeners();
+    try {
+      outages = await _service.getOutages(outageRangeDays);
+    } catch (exception) {
+      error = exception.toString();
+    } finally {
+      outagesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _refreshOutagesSilently() async {
+    if (_shuttingDown) return;
+    try {
+      outages = await _service.getOutages(outageRangeDays);
+    } catch (_) {
+      return;
     }
   }
 
@@ -160,10 +197,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> shutdown() async {
+    if (_shuttingDown) return;
+    _shuttingDown = true;
+    _pollTimer?.cancel();
+    await _service.dispose();
+  }
+
   @override
   void dispose() {
-    _pollTimer?.cancel();
-    _service.dispose();
+    unawaited(shutdown());
     super.dispose();
   }
 }

@@ -1,7 +1,7 @@
 name: netwatcher
 description: NetWatcher Rust + Flutter desktop migration
 publish_to: "none"
-version: 4.0.0+1
+version: 4.0.1+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  tray_manager: ^0.5.3
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:
@@ -17,3 +19,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/app_icon.ico
+    - assets/app_icon.png
