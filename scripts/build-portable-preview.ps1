@@ -3,7 +3,7 @@ $repo = Split-Path -Parent $PSScriptRoot
 $flutter = Join-Path $repo "flutter_app"
 $rust = Join-Path $repo "rust_core"
 $dist = Join-Path $repo "dist"
-$version = "4.0.2-preview"
+$version = "4.0.3-preview"
 
 & (Join-Path $PSScriptRoot "prepare-flutter-windows.ps1")
 & (Join-Path $PSScriptRoot "test-rust-flutter.ps1")
