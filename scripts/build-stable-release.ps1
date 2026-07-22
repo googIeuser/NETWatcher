@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $false)]
-    [string]$Version = "4.0.1"
+    [string]$Version = "4.0.2"
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +37,12 @@ if ($flutterMatch.Groups[1].Value -ne $Version) {
 
 cargo build --manifest-path (Join-Path $rust "Cargo.toml") --release
 if ($LASTEXITCODE -ne 0) { throw "Rust release build failed." }
+
+$windowsBuildCache = Join-Path $flutter "build\windows"
+if (Test-Path $windowsBuildCache) {
+    Remove-Item $windowsBuildCache -Recurse -Force
+}
+& (Join-Path $PSScriptRoot "prepare-flutter-windows.ps1")
 
 Push-Location $flutter
 try {
