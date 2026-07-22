@@ -1,0 +1,56 @@
+name: Rust Flutter Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "flutter_app/**"
+      - "rust_core/**"
+      - "scripts/**"
+      - ".github/workflows/rust-flutter-preview.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-preview:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter stable
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git C:\flutter
+          "C:\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure tools
+        shell: pwsh
+        run: |
+          rustup update stable
+          rustup default stable
+          flutter config --enable-windows-desktop
+          flutter --version
+          rustc --version
+
+      - name: Prepare Flutter Windows runner
+        shell: pwsh
+        run: .\scripts\prepare-flutter-windows.ps1
+
+      - name: Test Rust and Flutter
+        shell: pwsh
+        run: .\scripts\test-rust-flutter.ps1
+
+      - name: Build portable preview
+        shell: pwsh
+        run: .\scripts\build-portable-preview.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NetWatcher-4.0.0-dev.3-Windows-Portable
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
