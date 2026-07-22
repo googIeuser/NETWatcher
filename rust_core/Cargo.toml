@@ -1,6 +1,6 @@
 [package]
 name = "netwatcher_core"
-version = "4.0.0-dev.3"
+version = "4.0.0"
 edition = "2021"
 license = "MIT"
 description = "Rust monitoring and report core for NetWatcher"
