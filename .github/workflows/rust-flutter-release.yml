@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 60
     defaults:
       run:
@@ -49,6 +49,7 @@ jobs:
           rustup default stable
           flutter config --enable-windows-desktop
           flutter --version
+          flutter doctor -v
           rustc --version
           cargo --version
 
