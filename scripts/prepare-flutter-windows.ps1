@@ -83,6 +83,24 @@ try {
         Write-Host "NetWatcher icon changed; cached Windows resources were removed."
     }
 
+
+    $runnerRc = Join-Path $flutter "windows\runner\Runner.rc"
+    if (-not (Test-Path $runnerRc)) {
+        throw "Flutter Windows Runner.rc was not produced."
+    }
+
+    $runnerRcText = Get-Content $runnerRc -Raw
+    $patchedRunnerRcText = [regex]::Replace(
+        $runnerRcText,
+        'IDI_APP_ICON\s+ICON\s+"[^"]+"',
+        'IDI_APP_ICON            ICON                    "resources\\app_icon.ico"'
+    )
+    if ($patchedRunnerRcText -notmatch 'IDI_APP_ICON\s+ICON\s+"resources\\\\app_icon\.ico"') {
+        throw "Runner.rc icon resource could not be patched."
+    }
+    Set-Content -Path $runnerRc -Value $patchedRunnerRcText -Encoding unicode
+    (Get-Item $runnerRc).LastWriteTimeUtc = [DateTime]::UtcNow
+
     flutter pub get
     if ($LASTEXITCODE -ne 0) {
         throw "flutter pub get failed."

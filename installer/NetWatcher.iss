@@ -1,6 +1,6 @@
 ; NetWatcher 4 stable installer
 #ifndef MyAppVersion
-  #define MyAppVersion "4.0.2"
+  #define MyAppVersion "4.0.3"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\flutter_app\build\windows\x64\runner\Release"
@@ -12,6 +12,8 @@
 #define MyAppName "NetWatcher"
 #define MyAppPublisher "NetWatcher Contributors"
 #define MyAppExeName "netwatcher.exe"
+#define MyAppIconName "NetWatcher_4.0.3.ico"
+#define MyAppUserModelId "com.netwatcher.NetWatcher.4.0.3"
 
 [Setup]
 AppId={{E95B6876-8D42-4F38-90AD-2E5EC83A8C16}
@@ -27,11 +29,11 @@ OutputBaseFilename=NetWatcher_Setup_{#MyAppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile={#SourceDir}\data\flutter_assets\assets\app_icon.ico
+SetupIconFile={#SourceDir}\{#MyAppIconName}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
-UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayIcon={app}\{#MyAppIconName}
 VersionInfoVersion={#MyAppVersion}.0
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
@@ -50,9 +52,14 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+Type: files; Name: "{app}\netwatcher.exe"
+Type: files; Name: "{autoprograms}\NetWatcher.lnk"
+Type: files; Name: "{autodesktop}\NetWatcher.lnk"
+
 [Icons]
-Name: "{autoprograms}\NetWatcher"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\NetWatcher"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\NetWatcher"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconName}"; AppUserModelID: "{#MyAppUserModelId}"
+Name: "{autodesktop}\NetWatcher"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconName}"; AppUserModelID: "{#MyAppUserModelId}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,NetWatcher}"; Flags: nowait postinstall skipifsilent
