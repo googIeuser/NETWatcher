@@ -35,6 +35,29 @@ class MockCoreService implements CoreService {
   }
 
   @override
+  Future<List<OutageRecord>> getOutages(int days) async {
+    final now = DateTime.now();
+    return [
+      OutageRecord(
+        start: now.subtract(const Duration(hours: 5, minutes: 12)).toIso8601String(),
+        end: now.subtract(const Duration(hours: 5, minutes: 8)).toIso8601String(),
+        category: 'offline',
+        details: 'Gateway responded but all internet targets failed.',
+        durationSeconds: 247,
+        active: false,
+      ),
+      OutageRecord(
+        start: now.subtract(const Duration(days: 1, hours: 2)).toIso8601String(),
+        end: now.subtract(const Duration(days: 1, hours: 1, minutes: 55)).toIso8601String(),
+        category: 'degraded',
+        details: 'Average latency exceeded the configured threshold.',
+        durationSeconds: 421,
+        active: false,
+      ),
+    ];
+  }
+
+  @override
   Future<NetworkSnapshot> snapshot() async {
     if (_monitoring) _samples += 3;
     final statuses = <TargetStatus>[
