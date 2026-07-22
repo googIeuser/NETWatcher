@@ -1,0 +1,22 @@
+{
+  "name": "NetWatcher 4.0.0 Stable Release GitHub Update",
+  "version": "4.0.0",
+  "based_on_commit": "f1eabaaaf6296897dc13e8ec97f5a89dcdeedfc2",
+  "files": [
+    ".github/workflows/rust-flutter-release.yml",
+    "README_RELEASE_4.0.0_TR.md",
+    "RELEASE_NOTES_4.0.0.md",
+    "flutter_app/lib/app.dart",
+    "flutter_app/lib/models.dart",
+    "flutter_app/pubspec.yaml",
+    "installer/NetWatcher.iss",
+    "rust_core/Cargo.toml",
+    "scripts/build-stable-release.ps1"
+  ],
+  "expected_release_assets": [
+    "NetWatcher_Setup_4.0.0.exe",
+    "NetWatcher_Setup_4.0.0.exe.sha256",
+    "NetWatcher_4.0.0_Windows_Portable.zip",
+    "NetWatcher_4.0.0_Windows_Portable.zip.sha256"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "NetWatcher 4.0.1 Stable Release GitHub Update",
+  "version": "4.0.1",
+  "based_on_commit": "98a0a089569d89cdf0aead71c8f0de807bfd118d",
+  "fixes": [
+    "NetWatcher Windows and tray icon",
+    "Detailed outage history",
+    "Close-to-tray and tray menu"
+  ],
+  "expected_release_assets": [
+    "NetWatcher_Setup_4.0.1.exe",
+    "NetWatcher_Setup_4.0.1.exe.sha256",
+    "NetWatcher_4.0.1_Windows_Portable.zip",
+    "NetWatcher_4.0.1_Windows_Portable.zip.sha256"
+  ]
+}
