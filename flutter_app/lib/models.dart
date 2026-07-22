@@ -224,7 +224,7 @@ class NetworkSnapshot {
     this.targets = const [],
     this.recentEvents = const [],
     this.updatedAt = '',
-    this.version = '4.0.0',
+    this.version = '4.0.1',
   });
 
   final bool monitoring;
@@ -262,9 +262,38 @@ class NetworkSnapshot {
           .map(NetworkEvent.fromJson)
           .toList(growable: false),
       updatedAt: json['updatedAt'] as String? ?? '',
-      version: json['version'] as String? ?? '4.0.0',
+      version: json['version'] as String? ?? '4.0.1',
     );
   }
+}
+
+
+class OutageRecord {
+  const OutageRecord({
+    required this.start,
+    required this.end,
+    required this.category,
+    required this.details,
+    required this.durationSeconds,
+    required this.active,
+  });
+
+  final String start;
+  final String end;
+  final String category;
+  final String details;
+  final double durationSeconds;
+  final bool active;
+
+  factory OutageRecord.fromJson(Map<String, dynamic> json) => OutageRecord(
+        start: json['start'] as String? ?? '',
+        end: json['end'] as String? ?? '',
+        category: json['category'] as String? ?? 'offline',
+        details: json['details'] as String? ?? '',
+        durationSeconds:
+            (json['durationSeconds'] as num?)?.toDouble() ?? 0,
+        active: json['active'] as bool? ?? false,
+      );
 }
 
 

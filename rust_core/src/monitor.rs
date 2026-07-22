@@ -28,6 +28,7 @@ struct RuntimeState {
     active_outage: Option<ActiveOutage>,
 }
 
+#[derive(Clone)]
 struct ActiveOutage {
     start: DateTime<Utc>,
     category: String,
@@ -77,6 +78,33 @@ impl Engine {
 
     pub fn snapshot(&self) -> Snapshot {
         self.snapshot.read().expect("snapshot lock poisoned").clone()
+    }
+
+    pub fn outage_history(&self, days: i64) -> anyhow::Result<Vec<Outage>> {
+        let range_days = days.clamp(1, 36_500);
+        let since = Utc::now() - chrono::Duration::days(range_days);
+        let mut outages = self.store.read_outages(since)?;
+
+        let active = self
+            .runtime
+            .lock()
+            .expect("runtime lock poisoned")
+            .active_outage
+            .clone();
+        if let Some(active) = active {
+            let now = Utc::now();
+            outages.push(Outage {
+                start: active.start.to_rfc3339(),
+                end: String::new(),
+                category: active.category,
+                details: active.details,
+                duration_seconds: (now - active.start).num_milliseconds() as f64 / 1000.0,
+                active: true,
+            });
+        }
+
+        outages.sort_by(|a, b| b.start.cmp(&a.start));
+        Ok(outages)
     }
 
     fn push_event(&self, level: &str, category: &str, message: String) {
