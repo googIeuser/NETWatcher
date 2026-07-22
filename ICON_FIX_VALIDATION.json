@@ -1,9 +1,0 @@
-{
-  "version": "4.0.3",
-  "fix": "definitive_windows_icon_resource_rebuild",
-  "source_icon_sha256": "e4ae8e65e4adfc539615950dfc7db404f4ed235e82eb2038ce7c32aa258f20b0",
-  "runner_icon_sha256": "e4ae8e65e4adfc539615950dfc7db404f4ed235e82eb2038ce7c32aa258f20b0",
-  "cache_invalidation": true,
-  "runner_resource_directly_included": true,
-  "stable_build_forces_clean_windows_resources": true
-}

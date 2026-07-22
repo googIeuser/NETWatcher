@@ -1,8 +1,0 @@
-# Add these lines to the repository .gitignore
-flutter_app/.dart_tool/
-flutter_app/build/
-flutter_app/.flutter-plugins
-flutter_app/.flutter-plugins-dependencies
-flutter_app/windows/flutter/ephemeral/
-rust_core/target/
-dist/
