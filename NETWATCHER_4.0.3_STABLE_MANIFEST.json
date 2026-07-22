@@ -1,0 +1,21 @@
+{
+  "name": "NetWatcher 4.0.3 Stable Release Update",
+  "version": "4.0.3",
+  "base_commit": "8f7863fe0ea78adb68506ece0cbb4717cc303281",
+  "icon_fix_strategy": {
+    "versioned_icon_file": "NetWatcher_4.0.3.ico",
+    "shortcut_app_user_model_id": "com.netwatcher.NetWatcher.4.0.3",
+    "delete_old_executable": true,
+    "recreate_shortcuts": true,
+    "force_runner_rc_icon": true,
+    "executable_name": "netwatcher.exe",
+    "product_name": "NetWatcher"
+  },
+  "netwatcher_icon_sha256": "e4ae8e65e4adfc539615950dfc7db404f4ed235e82eb2038ce7c32aa258f20b0",
+  "expected_release_assets": [
+    "NetWatcher_Setup_4.0.3.exe",
+    "NetWatcher_Setup_4.0.3.exe.sha256",
+    "NetWatcher_4.0.3_Windows_Portable.zip",
+    "NetWatcher_4.0.3_Windows_Portable.zip.sha256"
+  ]
+}

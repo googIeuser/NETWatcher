@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $false)]
-    [string]$Version = "4.0.2"
+    [string]$Version = "4.0.3"
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,9 +55,18 @@ try {
 $releaseDir = Join-Path $flutter "build\windows\x64\runner\Release"
 $core = Join-Path $rust "target\release\netwatcher_core.exe"
 $app = Join-Path $releaseDir "netwatcher.exe"
+$releaseIcon = Join-Path $releaseDir "NetWatcher_4.0.3.ico"
 if (-not (Test-Path $releaseDir)) { throw "Flutter release folder was not produced." }
 if (-not (Test-Path $core)) { throw "Rust release core was not produced." }
 if (-not (Test-Path $app)) { throw "Flutter executable was not produced: $app" }
+
+Copy-Item (Join-Path $flutter "assets\app_icon.ico") $releaseIcon -Force
+
+$sourceIconHash = (Get-FileHash (Join-Path $flutter "assets\app_icon.ico") -Algorithm SHA256).Hash
+$releaseIconHash = (Get-FileHash $releaseIcon -Algorithm SHA256).Hash
+if ($sourceIconHash -ne $releaseIconHash) {
+    throw "Versioned release icon verification failed."
+}
 
 Copy-Item $core (Join-Path $releaseDir "netwatcher_core.exe") -Force
 Set-Content -Path (Join-Path $releaseDir "VERSION.txt") -Value $Version -Encoding ascii
