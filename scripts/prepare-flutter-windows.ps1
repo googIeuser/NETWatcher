@@ -59,8 +59,6 @@ try {
         $destinationHash = (Get-FileHash $runnerIcon -Algorithm SHA256).Hash.ToLower()
     }
 
-    # The old package could copy the correct icon without invalidating Ninja's
-    # compiled Windows resource. Missing marker therefore also forces rebuild.
     $iconChanged = (
         $destinationHash -ne $sourceHash -or
         $storedHash -ne $sourceHash
@@ -83,23 +81,37 @@ try {
         Write-Host "NetWatcher icon changed; cached Windows resources were removed."
     }
 
-
     $runnerRc = Join-Path $flutter "windows\runner\Runner.rc"
     if (-not (Test-Path $runnerRc)) {
         throw "Flutter Windows Runner.rc was not produced."
     }
 
-    $runnerRcText = Get-Content $runnerRc -Raw
+    $runnerRcText = [System.IO.File]::ReadAllText($runnerRc)
     $patchedRunnerRcText = [regex]::Replace(
         $runnerRcText,
         'IDI_APP_ICON\s+ICON\s+"[^"]+"',
         'IDI_APP_ICON            ICON                    "resources\\app_icon.ico"'
     )
+
     if ($patchedRunnerRcText -notmatch 'IDI_APP_ICON\s+ICON\s+"resources\\\\app_icon\.ico"') {
         throw "Runner.rc icon resource could not be patched."
     }
-    Set-Content -Path $runnerRc -Value $patchedRunnerRcText -Encoding unicode
+
+    # Flutter reads Runner.rc as UTF-8 during its Windows version migration.
+    # PowerShell's -Encoding unicode writes UTF-16 and breaks flutter build.
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText(
+        $runnerRc,
+        $patchedRunnerRcText,
+        $utf8NoBom
+    )
     (Get-Item $runnerRc).LastWriteTimeUtc = [DateTime]::UtcNow
+
+    # Fail early if the file cannot be decoded as UTF-8.
+    $strictUtf8 = New-Object System.Text.UTF8Encoding($false, $true)
+    [void]$strictUtf8.GetString(
+        [System.IO.File]::ReadAllBytes($runnerRc)
+    )
 
     flutter pub get
     if ($LASTEXITCODE -ne 0) {
