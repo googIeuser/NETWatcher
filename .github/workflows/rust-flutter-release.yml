@@ -1,0 +1,94 @@
+name: NetWatcher 4 Stable Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Stable version without the v prefix"
+        required: true
+        default: "4.0.0"
+  push:
+    tags:
+      - "v4.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve stable version
+        run: |
+          if ($env:GITHUB_REF -like "refs/tags/v*") {
+            $version = "${env:GITHUB_REF_NAME}".TrimStart("v")
+          } else {
+            $version = "${{ inputs.version }}".TrimStart("v")
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Stable version must use x.y.z format: $version"
+          }
+          "RELEASE_VERSION=$version" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_TAG=v$version" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install Flutter stable
+        run: |
+          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git C:\flutter
+          "C:\flutter\bin" | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure Rust and Flutter
+        run: |
+          rustup update stable
+          rustup default stable
+          flutter config --enable-windows-desktop
+          flutter --version
+          rustc --version
+          cargo --version
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build and test stable assets
+        run: .\scripts\build-stable-release.ps1 -Version "${env:RELEASE_VERSION}"
+
+      - name: Upload Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetWatcher-${{ env.RELEASE_TAG }}-Windows
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+      - name: Publish latest stable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = "RELEASE_NOTES_${env:RELEASE_VERSION}.md"
+          if (-not (Test-Path $notes)) {
+            throw "Release notes were not found: $notes"
+          }
+
+          gh release view "${env:RELEASE_TAG}" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload "${env:RELEASE_TAG}" dist/*.exe dist/*.zip dist/*.sha256 --clobber
+            gh release edit "${env:RELEASE_TAG}" `
+              --title "NetWatcher ${env:RELEASE_VERSION}" `
+              --notes-file $notes `
+              --latest
+          } else {
+            gh release create "${env:RELEASE_TAG}" `
+              dist/*.exe dist/*.zip dist/*.sha256 `
+              --target "${env:GITHUB_SHA}" `
+              --title "NetWatcher ${env:RELEASE_VERSION}" `
+              --notes-file $notes `
+              --latest
+          }

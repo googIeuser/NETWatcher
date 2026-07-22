@@ -209,7 +209,7 @@ class _DesktopSidebar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(18),
               child: Text(
-                expanded ? '4.0.0-dev.3' : '4.0',
+                expanded ? '4.0.0' : '4.0',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.labelSmall,
               ),
