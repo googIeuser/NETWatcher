@@ -21,7 +21,7 @@ class DesktopTrayController with TrayListener {
     final iconPath = _findIconPath();
     await windowManager.setIcon(iconPath);
     await trayManager.setIcon(iconPath);
-    await trayManager.setToolTip('NetWatcher 4.0.2');
+    await trayManager.setToolTip('NetWatcher 4.0.3');
 
     trayManager.addListener(this);
     _lastMonitoring = state.snapshot.monitoring;
@@ -71,8 +71,8 @@ class DesktopTrayController with TrayListener {
     await trayManager.setContextMenu(menu);
     await trayManager.setToolTip(
       state.snapshot.monitoring
-          ? 'NetWatcher 4.0.2 · Monitoring'
-          : 'NetWatcher 4.0.2 · Stopped',
+          ? 'NetWatcher 4.0.3 · Monitoring'
+          : 'NetWatcher 4.0.3 · Stopped',
     );
   }
 
