@@ -1,36 +1,27 @@
 # Releasing NetWatcher
 
-## Normal release
+## Prepare version 4.x
 
-1. Update `appVersion` in `version.go` and add the release notes to `CHANGELOG.md`.
-2. Commit and push the changes.
-3. Either run **Actions → Release → Run workflow** with the matching version, or create and push a matching tag:
+1. Update the version in `flutter_app/pubspec.yaml` and `rust_core/Cargo.toml`.
+2. Add `RELEASE_NOTES_x.y.z.md` and update `CHANGELOG.md`.
+3. Push the changes and confirm **Rust Flutter Preview** finishes successfully.
+4. In **Actions → NetWatcher Stable Build**, run the workflow with the same version.
+5. Download the stable Actions artifact containing the installer, portable ZIP and checksum files.
+6. Open **Releases → Draft a new release**, create tag `vx.y.z`, target `main`, attach the stable files and use the matching release-notes file.
+7. Mark the release as latest and publish it manually.
 
-```powershell
-git tag -a v2.2.2 -m "NetWatcher 2.2.2"
-git push origin v2.2.2
-```
-
-The release workflow builds a repository-aware setup executable. The application uses that repository identifier for GitHub update checks.
+Creating a tag does not publish or modify a GitHub Release automatically.
 
 ## Optional Authenticode signing
 
-Create repository Actions secrets:
-
-- `WINDOWS_CERTIFICATE_BASE64`: Base64-encoded PFX file
-- `WINDOWS_CERTIFICATE_PASSWORD`: PFX password
-
-The workflow skips signing when either secret is missing. Never commit a PFX file or password.
-
-A publicly trusted code-signing certificate is required to show a verified publisher and improve SmartScreen reputation. Signing support cannot replace a certificate.
+Run `scripts/sign-release.ps1` with a publicly trusted Windows code-signing certificate before uploading the installer. Never commit a PFX file or password.
 
 ## Release verification
 
-Download the EXE and `.sha256` asset from the GitHub Release, then verify:
+Verify each downloaded asset against its `.sha256` file:
 
 ```powershell
-(Get-FileHash .\NetWatcher_Setup_2.2.2.exe -Algorithm SHA256).Hash
+(Get-FileHash .\NetWatcher_Setup_4.0.4.exe -Algorithm SHA256).Hash
 ```
 
-Before announcing a release, test installation, upgrade, uninstall, startup-to-tray, minimize-to-tray, target editing, ping/TCP/HTTPS checks, graph ranges, outage notifications, Statistics, Outage History, Evidence Report, ZIP export, and update checking on clean Windows 10 and Windows 11 virtual machines.
-
+Before publishing, test installation, upgrade, uninstall, Windows startup, startup-to-tray, minimize-to-tray, monitoring controls, all graph ranges, outage history, reports and portable launch on clean Windows 10 and Windows 11 systems.

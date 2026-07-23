@@ -11,7 +11,7 @@ Future<void> main(List<String> arguments) async {
 
   final state = await AppState.create();
 
-  final windowOptions = WindowOptions(
+  const windowOptions = WindowOptions(
     size: Size(1260, 760),
     minimumSize: Size(760, 560),
     center: true,
