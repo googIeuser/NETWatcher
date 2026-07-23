@@ -1,6 +1,9 @@
 name: NetWatcher Stable Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version:
@@ -9,17 +12,58 @@ on:
         default: "4.0.4"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: netwatcher-stable-release
-  cancel-in-progress: false
+  group: netwatcher-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
-  windows-stable-release:
+  test:
+    name: Test Rust and Flutter
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Install Flutter stable
+        run: |
+          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git C:\flutter
+          "C:\flutter\bin" |
+            Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure Rust and Flutter
+        run: |
+          rustup update stable
+          rustup default stable
+          flutter config --enable-windows-desktop
+          flutter --version
+          flutter doctor -v
+          rustc --version
+          cargo --version
+
+      - name: Prepare Flutter Windows runner
+        run: .\scripts\prepare-flutter-windows.ps1
+
+      - name: Run Rust and Flutter checks
+        run: .\scripts\test-rust-flutter.ps1
+
+  release:
     name: Build and publish stable Windows release
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - test
     runs-on: windows-2022
     timeout-minutes: 75
+
+    permissions:
+      contents: write
 
     defaults:
       run:
@@ -75,7 +119,7 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 
-      - name: Build and test stable assets
+      - name: Build stable assets
         run: .\scripts\build-stable-release.ps1 -Version "${env:RELEASE_VERSION}"
 
       - name: Verify stable assets
