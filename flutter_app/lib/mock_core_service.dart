@@ -9,6 +9,8 @@ class MockCoreService implements CoreService {
   NetWatcherConfig _config = const NetWatcherConfig();
   bool _monitoring = false;
   int _samples = 0;
+  bool _outagesCleared = false;
+  final List<NetworkEvent> _recentEvents = [];
 
   @override
   Future<void> initialise() async {}
@@ -22,39 +24,75 @@ class MockCoreService implements CoreService {
     return config;
   }
 
+  void _pushEvent(String message) {
+    _recentEvents.insert(
+      0,
+      NetworkEvent(
+        time: DateTime.now().toIso8601String(),
+        level: 'info',
+        category: 'monitor',
+        message: message,
+      ),
+    );
+    if (_recentEvents.length > 50) {
+      _recentEvents.removeRange(50, _recentEvents.length);
+    }
+  }
+
   @override
   Future<NetworkSnapshot> startMonitoring() async {
-    _monitoring = true;
+    if (!_monitoring) {
+      _monitoring = true;
+      _pushEvent('Monitoring started.');
+    }
     return snapshot();
   }
 
   @override
   Future<NetworkSnapshot> stopMonitoring() async {
-    _monitoring = false;
+    if (_monitoring) {
+      _monitoring = false;
+      _pushEvent('Monitoring stopped.');
+    }
     return snapshot();
   }
 
   @override
   Future<List<OutageRecord>> getOutages(int days) async {
+    if (_outagesCleared) return const [];
     final now = DateTime.now();
     return [
       OutageRecord(
-        start: now.subtract(const Duration(hours: 5, minutes: 12)).toIso8601String(),
-        end: now.subtract(const Duration(hours: 5, minutes: 8)).toIso8601String(),
+        start: now
+            .subtract(const Duration(hours: 5, minutes: 12))
+            .toIso8601String(),
+        end: now
+            .subtract(const Duration(hours: 5, minutes: 8))
+            .toIso8601String(),
         category: 'offline',
         details: 'Gateway responded but all internet targets failed.',
         durationSeconds: 247,
         active: false,
       ),
       OutageRecord(
-        start: now.subtract(const Duration(days: 1, hours: 2)).toIso8601String(),
-        end: now.subtract(const Duration(days: 1, hours: 1, minutes: 55)).toIso8601String(),
+        start: now
+            .subtract(const Duration(days: 1, hours: 2))
+            .toIso8601String(),
+        end: now
+            .subtract(const Duration(days: 1, hours: 1, minutes: 55))
+            .toIso8601String(),
         category: 'degraded',
         details: 'Average latency exceeded the configured threshold.',
         durationSeconds: 421,
         active: false,
       ),
     ];
+  }
+
+  @override
+  Future<List<OutageRecord>> clearOutageHistory(int days) async {
+    _outagesCleared = true;
+    return getOutages(days);
   }
 
   @override
@@ -92,16 +130,7 @@ class MockCoreService implements CoreService {
       jitter: _monitoring ? 2.4 : 0,
       samples: _samples,
       targets: statuses,
-      recentEvents: [
-        NetworkEvent(
-          time: DateTime.now().toIso8601String(),
-          level: 'success',
-          category: 'monitor',
-          message: _monitoring
-              ? 'Monitoring is active.'
-              : 'Monitoring is stopped.',
-        ),
-      ],
+      recentEvents: List<NetworkEvent>.unmodifiable(_recentEvents),
       updatedAt: DateTime.now().toIso8601String(),
     );
   }

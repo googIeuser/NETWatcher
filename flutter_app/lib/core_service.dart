@@ -8,6 +8,7 @@ abstract interface class CoreService {
   Future<NetworkSnapshot> stopMonitoring();
   Future<NetworkSnapshot> snapshot();
   Future<List<OutageRecord>> getOutages(int days);
+  Future<List<OutageRecord>> clearOutageHistory(int days);
   Future<ReportResult> generateHtmlReport(int hours);
   Future<ReportResult> generateEvidenceReport(int days);
   Future<ReportResult> exportDiagnostics(int hours);

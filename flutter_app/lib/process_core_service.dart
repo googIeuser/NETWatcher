@@ -111,6 +111,16 @@ class ProcessCoreService implements CoreService {
   }
 
   @override
+  Future<List<OutageRecord>> clearOutageHistory(int days) async {
+    final result = await _request('clear_outages', {'days': days});
+    final values = result['data'] as List<dynamic>? ?? const [];
+    return values
+        .whereType<Map<String, dynamic>>()
+        .map(OutageRecord.fromJson)
+        .toList(growable: false);
+  }
+
+  @override
   Future<ReportResult> generateHtmlReport(int hours) async =>
       ReportResult.fromJson(
         _data(await _request('generate_html_report', {'hours': hours})),

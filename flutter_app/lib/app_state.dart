@@ -135,6 +135,24 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<bool> clearOutageHistory() async {
+    if (_shuttingDown || outagesLoading) return false;
+    outagesLoading = true;
+    error = null;
+    notifyListeners();
+    try {
+      outages = await _service.clearOutageHistory(outageRangeDays);
+      snapshot = await _service.snapshot();
+      return true;
+    } catch (exception) {
+      error = exception.toString();
+      return false;
+    } finally {
+      outagesLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> toggleMonitoring() async {
     try {
       snapshot = snapshot.monitoring
