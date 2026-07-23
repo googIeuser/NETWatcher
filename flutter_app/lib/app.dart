@@ -8,6 +8,7 @@ import 'app_state.dart';
 import 'desktop_tray.dart';
 import 'motion.dart';
 import 'pages.dart';
+import 'restored_pages.dart';
 import 'theme.dart';
 
 class NetWatcherApp extends StatefulWidget {
@@ -106,12 +107,12 @@ class _AppShellState extends State<AppShell> {
   Widget page() => KeyedSubtree(
         key: ValueKey<int>(selected),
         child: switch (selected) {
-          0 => DashboardPage(state: widget.state),
+          0 => RestoredDashboardPage(state: widget.state),
           1 => StatisticsPage(state: widget.state),
           2 => OutagesPage(state: widget.state),
           3 => ReportsPage(state: widget.state),
           4 => TargetsPage(state: widget.state),
-          _ => SettingsPage(state: widget.state),
+          _ => RestoredSettingsPage(state: widget.state),
         },
       );
 
