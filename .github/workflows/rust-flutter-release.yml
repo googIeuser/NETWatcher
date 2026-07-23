@@ -1,4 +1,4 @@
-name: NetWatcher Stable Build
+name: NetWatcher Stable Release
 
 on:
   workflow_dispatch:
@@ -9,15 +9,15 @@ on:
         default: "4.0.4"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: netwatcher-stable-build
+  group: netwatcher-stable-release
   cancel-in-progress: false
 
 jobs:
-  windows-stable-build:
-    name: Build stable Windows packages
+  windows-stable-release:
+    name: Build and publish stable Windows release
     runs-on: windows-2022
     timeout-minutes: 75
 
@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Resolve and validate stable version
         run: |
@@ -38,7 +40,7 @@ jobs:
           }
 
           if ("${{ github.ref_name }}" -ne "main") {
-            throw "Stable builds must be started from the main branch."
+            throw "Stable releases must be started from the main branch."
           }
 
           $notes = "RELEASE_NOTES_$version.md"
@@ -49,6 +51,8 @@ jobs:
           "RELEASE_VERSION=$version" |
             Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_TAG=v$version" |
+            Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_NOTES=$notes" |
             Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Flutter stable
@@ -66,6 +70,7 @@ jobs:
           flutter doctor -v
           rustc --version
           cargo --version
+          gh --version
 
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
@@ -84,11 +89,11 @@ jobs:
 
           foreach ($path in $required) {
             if (-not (Test-Path $path)) {
-              throw "Required stable asset was not produced: $path"
+              throw "Required stable release asset was not produced: $path"
             }
           }
 
-      - name: Upload stable release files
+      - name: Upload stable workflow backup
         uses: actions/upload-artifact@v4
         with:
           name: NetWatcher-${{ env.RELEASE_TAG }}-Windows-Stable
@@ -97,3 +102,92 @@ jobs:
             dist/*.zip
             dist/*.sha256
           if-no-files-found: error
+
+      - name: Create or verify stable tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          $tag = "${env:RELEASE_TAG}"
+          $tagLine = git ls-remote --exit-code --tags origin "refs/tags/$tag" 2>$null
+          $lookupExit = $LASTEXITCODE
+
+          if ($lookupExit -eq 0 -and $tagLine) {
+            $peeledLine = git ls-remote --tags origin "refs/tags/$tag^{}"
+            if ($peeledLine) {
+              $tagCommit = ($peeledLine -split '\s+')[0]
+            } else {
+              $tagCommit = ($tagLine -split '\s+')[0]
+            }
+
+            if ($tagCommit.ToLowerInvariant() -ne "${env:GITHUB_SHA}".ToLowerInvariant()) {
+              throw "Tag $tag already exists on another commit: $tagCommit"
+            }
+
+            Write-Host "Tag $tag already points to this workflow commit."
+          } elseif ($lookupExit -eq 2) {
+            git tag -a "$tag" "${env:GITHUB_SHA}" -m "NetWatcher ${env:RELEASE_VERSION}"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Stable tag creation failed."
+            }
+
+            git push origin "refs/tags/$tag"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Stable tag push failed."
+            }
+          } else {
+            throw "Could not check whether tag $tag exists."
+          }
+
+      - name: Publish GitHub stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(
+            Get-ChildItem .\dist -File |
+              Where-Object {
+                $_.Name -like "*.exe" -or
+                $_.Name -like "*.zip" -or
+                $_.Name -like "*.sha256"
+              } |
+              ForEach-Object { $_.FullName }
+          )
+
+          if ($assets.Count -lt 4) {
+            throw "Stable release assets are incomplete."
+          }
+
+          gh release view "${env:RELEASE_TAG}" `
+            --repo "${env:GITHUB_REPOSITORY}" *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+
+          if ($releaseExists) {
+            gh release upload "${env:RELEASE_TAG}" @assets `
+              --repo "${env:GITHUB_REPOSITORY}" `
+              --clobber
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Existing release asset upload failed."
+            }
+
+            gh release edit "${env:RELEASE_TAG}" `
+              --repo "${env:GITHUB_REPOSITORY}" `
+              --title "NetWatcher ${env:RELEASE_VERSION}" `
+              --notes-file "${env:RELEASE_NOTES}" `
+              --latest
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Existing stable release update failed."
+            }
+          } else {
+            gh release create "${env:RELEASE_TAG}" @assets `
+              --repo "${env:GITHUB_REPOSITORY}" `
+              --verify-tag `
+              --title "NetWatcher ${env:RELEASE_VERSION}" `
+              --notes-file "${env:RELEASE_NOTES}" `
+              --latest
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "GitHub stable release publication failed."
+            }
+          }
