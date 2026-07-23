@@ -1,47 +1,113 @@
 # NetWatcher
 
-NetWatcher is a lightweight Windows connection monitor and local diagnostics utility. It records latency, jitter, packet loss and outages, separates local-network failures from wider internet failures, and produces evidence reports that can be shared with an ISP or regulator.
+NetWatcher is a lightweight Windows connection monitor and local diagnostics utility built with a **Flutter desktop interface** and a **Rust monitoring core**.
 
-[Download the latest release](../../releases/latest)
+It continuously measures latency, jitter and packet loss, distinguishes local-network problems from wider internet failures, keeps local outage history and creates reports that can be shared with an ISP or regulator.
 
-## NetWatcher 3
+**Current version:** `4.0.4`
 
-NetWatcher 3 uses a responsive Wails + React + TypeScript interface while retaining the local Go monitoring engine. Stable application source is located in `next/`.
+[Download the latest release](../../releases/latest) · [Changelog](CHANGELOG.md) · [Privacy](PRIVACY.md)
+
+> NetWatcher works locally. It does not require an account and does not upload your measurements or log files.
+
+## Highlights in 4.0.4
+
+- Restored real per-target latency history from locally stored measurements
+- Restored 5-minute, 30-minute, 1-hour and 24-hour graph ranges
+- Added brighter graph series, thicker lines and latest-sample markers
+- Changed the latency axis to clear, rounded millisecond intervals
+- Added a confirmation-protected action for deleting saved outage history
+- Preserves an outage that is still active when saved history is cleared
+- Records both monitoring start and monitoring stop actions in Recent events
+- Restored start-with-Windows, start-minimized and automatic-monitoring controls
+- Improved responsive layouts for common Windows desktop sizes
+- Consolidated testing, Windows test packages and stable publication into one workflow
+
+See [RELEASE_NOTES_4.0.4.md](RELEASE_NOTES_4.0.4.md) for the complete release summary.
 
 ## Features
 
-- Default gateway, Cloudflare, Google and custom-target monitoring
-- Ping, TCP and HTTP/HTTPS target checks
-- Live latency graph with 5-minute, 30-minute, 1-hour and 24-hour ranges
-- Rolling packet-loss, jitter and connection-quality scoring
-- Local-network, ISP-outage, partial-access and high-latency classification
-- Target management with add, edit, rename and remove operations
-- Statistics, Outage History and ISP Evidence reports
-- CSV logs, printable HTML reports and one-click diagnostics ZIP export
-- Configurable automatic log retention
-- Windows outage and recovery notifications
-- Native tray menu and start-with-Windows support
-- Turkish and English interface
-- Light and dark themes
-- Automatic GitHub release checks
-- NSIS installer with WebView2 runtime handling
-- No telemetry, advertising or account requirement
+### Live connection monitoring
 
-Access Mode and GoodbyeDPI are not included.
+- Monitors the default gateway, Cloudflare, Google and user-defined targets
+- Supports ICMP ping, TCP and HTTP/HTTPS checks
+- Displays average latency, packet loss, jitter, sample count and connection quality
+- Classifies failures as:
+  - Local network failure
+  - Internet outage
+  - Partial access
+  - High latency / degraded connection
+- Keeps a Recent events timeline for monitoring and connection-state changes
+
+### Latency history and statistics
+
+- Real per-target latency history restored from local measurement logs
+- Selectable history ranges:
+  - Last 5 minutes
+  - Last 30 minutes
+  - Last hour
+  - Last 24 hours
+- Readable rounded millisecond axis
+- Distinct high-contrast target colors
+- Latest-sample markers and graph glow
+- Automatic downsampling for large graph histories
+- Target-by-target Statistics page
+
+### Outage History
+
+- Filter by:
+  - Last 24 hours
+  - Last 7 days
+  - Last 30 days
+  - Last year
+  - All time
+- Shows active and resolved incidents
+- Displays start time, end time, duration and diagnostic details
+- Summarizes incident count, active incidents, total downtime and longest incident
+- Refreshes outage data while the application is running
+- Saved history can be deleted after confirmation
+- An outage currently in progress remains visible after saved history is cleared
+
+### Reports and exports
+
+NetWatcher generates all reports locally:
+
+- **HTML report** — connection measurements, target summaries and completed outages
+- **ISP Evidence Report** — availability, packet loss, latency, jitter and outage evidence
+- **Diagnostics ZIP** — settings, current snapshot, calculated summaries, outages and original CSV logs
+
+Reports are saved under:
+
+```text
+Documents\NetWatcherLogs\Reports
+```
+
+### Windows desktop integration
+
+- Native notification-area icon
+- Open NetWatcher from the tray
+- Start or stop monitoring from the tray menu
+- Keep running in the notification area when the window is closed
+- Start NetWatcher with Windows
+- Start minimized after Windows login
+- Start monitoring automatically
+- Light and dark themes
+- Responsive layouts for desktop and compact window sizes
 
 ## Custom target formats
 
-A plain host or IP uses ICMP ping:
+A plain hostname or IP address uses ICMP ping:
 
 ```text
 1.1.1.1
 example.com
 ```
 
-A TCP target checks whether a port accepts a connection:
+A TCP target checks whether the specified port accepts a connection:
 
 ```text
 tcp://example.com:443
+tcp://192.168.1.10:22
 ```
 
 An HTTP or HTTPS target checks a web endpoint:
@@ -51,42 +117,156 @@ https://example.com/health
 http://192.168.1.10/status
 ```
 
-## Privacy
-
-Monitoring, statistics and report generation happen locally. NetWatcher does not upload measurements, IP addresses or log files. When enabled, update checks contact GitHub's public Releases API. See [PRIVACY.md](PRIVACY.md).
+Default targets are managed by NetWatcher. Custom targets can be added and removed from the **Targets** page.
 
 ## Installation
 
-1. Open the [latest release](../../releases/latest).
-2. Download `NetWatcher_Setup_3.0.0.exe`.
-3. Run the installer.
+Open the [latest release](../../releases/latest) and choose one of the Windows packages.
 
-Settings are stored under `%APPDATA%\NetWatcher`. Logs are stored under:
+### Installer
+
+```text
+NetWatcher_Setup_4.0.4.exe
+```
+
+The installer creates the normal Windows installation and uninstallation entries.
+
+### Portable package
+
+```text
+NetWatcher_4.0.4_Windows_Portable.zip
+```
+
+Extract the complete ZIP before running `netwatcher.exe`. The Flutter application and `netwatcher_core.exe` must remain together in the extracted folder.
+
+### Verify downloads
+
+Each installer and portable ZIP is published with a matching `.sha256` file.
+
+PowerShell example:
+
+```powershell
+(Get-FileHash .\NetWatcher_Setup_4.0.4.exe -Algorithm SHA256).Hash.ToLower()
+Get-Content .\NetWatcher_Setup_4.0.4.exe.sha256
+```
+
+The two hash values should match.
+
+Community builds may show a Windows SmartScreen unknown-publisher warning when they are not code-signed.
+
+## Local data and privacy
+
+Settings are stored at:
+
+```text
+%APPDATA%\NetWatcher\settings.json
+```
+
+Measurements, events and outage records are stored at:
 
 ```text
 Documents\NetWatcherLogs
 ```
 
-Community builds may show a Windows SmartScreen unknown-publisher warning when they are not code-signed.
+NetWatcher does not require an account, does not contain advertising and does not upload measurements, target addresses or report files. See [PRIVACY.md](PRIVACY.md) for more information.
+
+## Architecture
+
+```text
+flutter_app/        Flutter Windows interface
+rust_core/          Rust monitoring, storage and reporting core
+scripts/            Test, preparation and release build scripts
+installer/          Inno Setup installer definition
+dist/               Generated release assets
+```
+
+The Flutter application starts `netwatcher_core.exe` locally and communicates with it through a small JSON command interface over standard input and output.
 
 ## Build from source
 
-Requirements: Go 1.23+, Node.js, Wails v2.12.0, WebView2 and Windows 10/11.
+### Requirements
+
+- Windows 10 or Windows 11, x64
+- Flutter stable with Windows desktop support
+- Dart SDK compatible with `>=3.4.0 <4.0.0`
+- Rust stable
+- Visual Studio 2022 with **Desktop development with C++**
+- Inno Setup 6 for installer creation
+- PowerShell
+
+### Prepare and test
+
+From the repository root:
 
 ```powershell
-go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
-.\scripts\build-wails.ps1 -Installer
+.\scripts\prepare-flutter-windows.ps1
+.\scripts\test-rust-flutter.ps1
 ```
 
-The output is written to `next\build\bin`.
+### Build installer and portable assets
 
-## Release process
+```powershell
+.\scripts\build-stable-release.ps1 -Version "4.0.4"
+```
 
-Run the **NetWatcher 3 Stable Release** workflow with version `3.0.0`. It validates the source version, builds the Wails application and NSIS installer, generates SHA-256 verification data and publishes the GitHub Release as the latest stable version.
+Generated files are written to:
+
+```text
+dist\
+```
+
+Expected release assets:
+
+```text
+NetWatcher_Setup_4.0.4.exe
+NetWatcher_Setup_4.0.4.exe.sha256
+NetWatcher_4.0.4_Windows_Portable.zip
+NetWatcher_4.0.4_Windows_Portable.zip.sha256
+```
+
+## GitHub Actions workflow
+
+NetWatcher uses one workflow named **NetWatcher Stable Release**.
+
+### Push testing
+
+Every push to `main` automatically runs the Rust and Flutter checks. A normal push does not create a package, tag or GitHub Release.
+
+### Windows test package
+
+1. Open **Actions → NetWatcher Stable Release**
+2. Select **Run workflow** on `main`
+3. Choose `test-build`
+4. Enter the version used by Flutter and Rust
+5. Download the generated Windows TEST artifact
+
+`test-build` does not create a tag or GitHub Release.
+
+### Stable publication
+
+After the test package has been approved:
+
+1. Update `CHANGELOG.md`
+2. Add `RELEASE_NOTES_x.y.z.md`
+3. Open **Actions → NetWatcher Stable Release**
+4. Choose `stable-release`
+5. Enter the matching version
+
+The workflow tests the project again, builds the installer and portable ZIP, creates the version tag and publishes the GitHub Release with SHA256 files.
+
+See [docs/RELEASING.md](docs/RELEASING.md) for the complete release procedure.
+
+## Scope
+
+**Access Mode and GoodbyeDPI are not included in NetWatcher.**
+
+NetWatcher focuses on connection monitoring, outage evidence, local diagnostics and reporting.
 
 ## Contributing and security
 
-Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before contributing. Report security issues privately as described in [SECURITY.md](SECURITY.md).
+Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before contributing.
+
+Report security issues privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
