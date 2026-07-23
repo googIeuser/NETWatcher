@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_state.dart';
@@ -159,6 +158,7 @@ class _AppShellState extends State<AppShell> {
                   expanded: expandedSidebar,
                   selected: selected,
                   destinations: destinations,
+                  version: widget.state.snapshot.version,
                   onSelected: selectPage,
                 ),
                 const VerticalDivider(width: 1),
@@ -207,12 +207,14 @@ class _DesktopSidebar extends StatelessWidget {
     required this.expanded,
     required this.selected,
     required this.destinations,
+    required this.version,
     required this.onSelected,
   });
 
   final bool expanded;
   final int selected;
   final List<(IconData, IconData, String)> destinations;
+  final String version;
   final ValueChanged<int> onSelected;
 
   @override
@@ -270,7 +272,7 @@ class _DesktopSidebar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(18),
               child: Text(
-                expanded ? '4.0.3' : '4.0.3',
+                version,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.labelSmall,
               ),
