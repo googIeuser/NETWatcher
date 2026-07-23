@@ -1321,7 +1321,7 @@ class _PageHeader extends StatelessWidget {
             ],
           );
           if (trailing == null) return copy;
-          if (constraints.maxWidth < 620) {
+          if (constraints.maxWidth < 760) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [copy, const SizedBox(height: 16), trailing!],
@@ -1330,9 +1330,15 @@ class _PageHeader extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Expanded(child: copy),
+              Expanded(flex: 3, child: copy),
               const SizedBox(width: 20),
-              trailing!,
+              Flexible(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.bottomRight,
+                  child: trailing!,
+                ),
+              ),
             ],
           );
         },
