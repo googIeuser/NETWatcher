@@ -103,7 +103,7 @@ class RestoredDashboardPage extends StatelessWidget {
                   const SizedBox(height: 7),
                   Wrap(
                     spacing: 14,
-                    runSpacing: 10,
+                    runSpacing: 12,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
@@ -112,18 +112,37 @@ class RestoredDashboardPage extends StatelessWidget {
                               fontWeight: FontWeight.w800,
                             ),
                       ),
-                      DropdownButton<int>(
-                        value: state.config.graphRangeMinutes,
-                        underline: const SizedBox.shrink(),
-                        items: const [
-                          DropdownMenuItem(value: 5, child: Text('5 minutes')),
-                          DropdownMenuItem(value: 30, child: Text('30 minutes')),
-                          DropdownMenuItem(value: 60, child: Text('1 hour')),
-                          DropdownMenuItem(value: 1440, child: Text('24 hours')),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) state.setGraphRange(value);
-                        },
+                      SizedBox(
+                        width: 190,
+                        child: DropdownButtonFormField<int>(
+                          key: ValueKey<int>(state.config.graphRangeMinutes),
+                          initialValue: state.config.graphRangeMinutes,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'History range',
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 5,
+                              child: Text('Last 5 minutes'),
+                            ),
+                            DropdownMenuItem(
+                              value: 30,
+                              child: Text('Last 30 minutes'),
+                            ),
+                            DropdownMenuItem(
+                              value: 60,
+                              child: Text('Last hour'),
+                            ),
+                            DropdownMenuItem(
+                              value: 1440,
+                              child: Text('Last 24 hours'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) state.setGraphRange(value);
+                          },
+                        ),
                       ),
                     ],
                   ),
