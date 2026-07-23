@@ -66,4 +66,35 @@ void main() {
     expect(find.text('Outage history deleted.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('outage history actions fit common desktop widths',
+      (tester) async {
+    for (final size in const [
+      Size(1280, 800),
+      Size(1366, 900),
+      Size(1536, 900),
+    ]) {
+      await tester.binding.setSurfaceSize(size);
+      final state = await AppState.create(
+        service: MockCoreService(),
+        pollSnapshots: false,
+        manageWindowsStartup: false,
+      );
+
+      await tester.pumpWidget(NetWatcherApp(state: state));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey<String>('nav-2')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey<String>('delete-outage-history')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+
+      state.dispose();
+    }
+
+    await tester.binding.setSurfaceSize(null);
+  });
 }

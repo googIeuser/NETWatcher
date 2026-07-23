@@ -382,6 +382,7 @@ class OutagesPage extends StatelessWidget {
           title: 'Outage history',
           subtitle:
               'Review each confirmed incident with its type, start and end time, duration and diagnostic details.',
+          trailingBreakpoint: 1180,
           trailing: Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -583,7 +584,7 @@ class OutageIncidentCard extends StatelessWidget {
     return Panel(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 720;
+          final compact = constraints.maxWidth < 1050;
           final heading = Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1286,12 +1287,14 @@ class _PageHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.trailing,
+    this.trailingBreakpoint = 760,
   });
 
   final String eyebrow;
   final String title;
   final String subtitle;
   final Widget? trailing;
+  final double trailingBreakpoint;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1321,7 +1324,7 @@ class _PageHeader extends StatelessWidget {
             ],
           );
           if (trailing == null) return copy;
-          if (constraints.maxWidth < 760) {
+          if (constraints.maxWidth < trailingBreakpoint) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [copy, const SizedBox(height: 16), trailing!],
