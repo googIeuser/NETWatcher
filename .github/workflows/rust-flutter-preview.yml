@@ -10,7 +10,7 @@ on:
       - "rust_core/**"
       - "scripts/**"
       - "installer/**"
-      - ".github/workflows/rust-flutter-preview.yml"
+      - ".github/workflows/**"
   pull_request:
     branches:
       - main
@@ -19,7 +19,7 @@ on:
       - "rust_core/**"
       - "scripts/**"
       - "installer/**"
-      - ".github/workflows/rust-flutter-preview.yml"
+      - ".github/workflows/**"
 
 permissions:
   contents: read
