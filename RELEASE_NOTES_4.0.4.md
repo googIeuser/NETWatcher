@@ -6,20 +6,26 @@ NetWatcher 4.0.4 restores real latency history and Windows startup controls in t
 
 - Real per-target latency history sourced from locally stored measurements.
 - 5-minute, 30-minute, 1-hour and 24-hour graph ranges.
-- Readable millisecond and time-axis labels.
 - Start NetWatcher with Windows.
 - Start minimized in the notification area.
 - Start monitoring automatically.
 
-## Reliability
+## Interface improvements
 
-- Keeps up to 24 hours of history in memory and downsamples graph payloads.
-- Prevents widget tests from modifying the Windows startup registry.
-- Prevents the one-second polling timer from blocking Flutter widget tests.
-- Fixes narrow-window sidebar overflow.
-- Stabilizes report action widget tests.
-- Disables obsolete automatic portable preview builds.
-- Publishes installer, portable ZIP and checksums through the Stable Release workflow.
+- Uses brighter, easier-to-distinguish latency graph colors.
+- Uses clear rounded millisecond steps on the chart axis.
+- Makes chart labels, lines and latest sample markers easier to read.
+- Replaces the compact latency range dropdown with the same filled History range control used elsewhere.
+- Removes the empty divider strip above the first row on the Statistics page.
+- Keeps the responsive sidebar and report pages stable at common Windows sizes.
+
+## Reliability and release flow
+
+- Keeps up to 24 hours of graph history and downsamples large graph payloads.
+- Prevents widget tests from changing the Windows startup registry.
+- Prevents continuous polling from blocking Flutter widget tests.
+- Uses one NetWatcher Stable Release workflow for automatic push tests, manual Windows test builds and manual stable publication.
+- Publishes the installer, portable ZIP and matching SHA256 files through the workflow.
 
 ## Release assets
 
