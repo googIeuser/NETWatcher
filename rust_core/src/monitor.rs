@@ -22,6 +22,7 @@ use crate::{
 #[derive(Default)]
 struct RuntimeState {
     previous_latency: HashMap<String, f64>,
+    history: HashMap<String, Vec<Sample>>,
     confirmed_state: String,
     pending_state: String,
     pending_count: u32,
@@ -52,14 +53,91 @@ impl Engine {
             .read_outages(Utc::now() - chrono::Duration::days(36_500))
             .map(|items| items.len() as u64)
             .unwrap_or(0);
+
+        let mut history: HashMap<String, Vec<Sample>> = HashMap::new();
+        let mut latest: HashMap<String, Measurement> = HashMap::new();
+        if let Ok(measurements) =
+            store.read_measurements(Utc::now() - chrono::Duration::hours(24))
+        {
+            for measurement in measurements {
+                history
+                    .entry(measurement.target_id.clone())
+                    .or_default()
+                    .push(Sample {
+                        time: measurement.timestamp.clone(),
+                        latency: measurement.latency,
+                        success: measurement.success,
+                    });
+                latest.insert(measurement.target_id.clone(), measurement);
+            }
+        }
+
+        let initial_targets: Vec<TargetStatus> = targets::all_targets(&config.custom_targets)
+            .into_iter()
+            .map(|target| {
+                let samples = history.get(&target.id).cloned().unwrap_or_default();
+                match latest.get(&target.id) {
+                    Some(measurement) => TargetStatus {
+                        target,
+                        state: if measurement.success {
+                            "online".into()
+                        } else {
+                            "offline".into()
+                        },
+                        latency: measurement.latency,
+                        packet_loss: if measurement.success { 0.0 } else { 100.0 },
+                        jitter: 0.0,
+                        last_check: measurement.timestamp.clone(),
+                        message: measurement.message.clone(),
+                        history: history_for_range(&samples, config.graph_range_minutes),
+                    },
+                    None => TargetStatus {
+                        target,
+                        state: "waiting".into(),
+                        latency: 0.0,
+                        packet_loss: 0.0,
+                        jitter: 0.0,
+                        last_check: String::new(),
+                        message: String::new(),
+                        history: Vec::new(),
+                    },
+                }
+            })
+            .collect();
+
+        let previous_latencies = initial_targets
+            .iter()
+            .filter(|status| status.state == "online")
+            .map(|status| (status.target.id.clone(), status.latency))
+            .collect();
+
+        let online_latencies: Vec<f64> = initial_targets
+            .iter()
+            .filter(|status| status.state == "online")
+            .map(|status| status.latency)
+            .collect();
+
         let mut snapshot = Snapshot::default();
         snapshot.outages = outage_count;
+        snapshot.targets = initial_targets;
+        if !online_latencies.is_empty() {
+            snapshot.average_latency =
+                online_latencies.iter().sum::<f64>() / online_latencies.len() as f64;
+            snapshot.connection_label = "Previous measurements".into();
+        }
+
+        let runtime = RuntimeState {
+            previous_latency: previous_latencies,
+            history,
+            ..RuntimeState::default()
+        };
+
         Self {
             config: Arc::new(RwLock::new(config)),
             snapshot: Arc::new(RwLock::new(snapshot)),
             running: Arc::new(AtomicBool::new(false)),
             worker: Arc::new(Mutex::new(None)),
-            runtime: Arc::new(Mutex::new(RuntimeState::default())),
+            runtime: Arc::new(Mutex::new(runtime)),
             store,
         }
     }
@@ -73,7 +151,18 @@ impl Engine {
     }
 
     pub fn update_config(&self, config: Config) {
+        let range_minutes = config.graph_range_minutes;
         *self.config.write().expect("config lock poisoned") = config;
+
+        let runtime = self.runtime.lock().expect("runtime lock poisoned");
+        let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
+        for status in &mut snapshot.targets {
+            status.history = runtime
+                .history
+                .get(&status.target.id)
+                .map(|samples| history_for_range(samples, range_minutes))
+                .unwrap_or_default();
+        }
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -274,6 +363,7 @@ impl Engine {
 
         {
             let mut runtime = self.runtime.lock().expect("runtime lock poisoned");
+            let history_cutoff = Utc::now() - chrono::Duration::hours(24);
             for status in &mut statuses {
                 if status.state == "online" {
                     if let Some(previous) = runtime
@@ -283,6 +373,23 @@ impl Engine {
                         status.jitter = (status.latency - previous).abs();
                     }
                 }
+
+                let target_history = runtime
+                    .history
+                    .entry(status.target.id.clone())
+                    .or_default();
+                target_history.extend(status.history.iter().cloned());
+                target_history.retain(|sample| {
+                    DateTime::parse_from_rfc3339(&sample.time)
+                        .map(|value| value.with_timezone(&Utc) >= history_cutoff)
+                        .unwrap_or(true)
+                });
+                if target_history.len() > 50_000 {
+                    let remove = target_history.len() - 50_000;
+                    target_history.drain(0..remove);
+                }
+                status.history =
+                    history_for_range(target_history, config.graph_range_minutes);
             }
         }
 
@@ -350,6 +457,37 @@ impl Drop for Engine {
     fn drop(&mut self) {
         self.running.store(false, Ordering::SeqCst);
     }
+}
+
+fn history_for_range(samples: &[Sample], range_minutes: u32) -> Vec<Sample> {
+    let cutoff = Utc::now() - chrono::Duration::minutes(range_minutes as i64);
+    let filtered: Vec<Sample> = samples
+        .iter()
+        .filter(|sample| {
+            DateTime::parse_from_rfc3339(&sample.time)
+                .map(|value| value.with_timezone(&Utc) >= cutoff)
+                .unwrap_or(true)
+        })
+        .cloned()
+        .collect();
+
+    const MAX_GRAPH_POINTS: usize = 600;
+    if filtered.len() <= MAX_GRAPH_POINTS {
+        return filtered;
+    }
+
+    let step = (filtered.len() + MAX_GRAPH_POINTS - 1) / MAX_GRAPH_POINTS;
+    let mut downsampled: Vec<Sample> = filtered.iter().step_by(step).cloned().collect();
+    if let Some(last) = filtered.last() {
+        if downsampled
+            .last()
+            .map(|sample| sample.time.as_str())
+            != Some(last.time.as_str())
+        {
+            downsampled.push(last.clone());
+        }
+    }
+    downsampled
 }
 
 fn check_target(target: Target, timeout_ms: u64) -> TargetStatus {

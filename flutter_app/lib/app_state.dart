@@ -6,6 +6,7 @@ import 'core_service.dart';
 import 'mock_core_service.dart';
 import 'models.dart';
 import 'process_core_service.dart';
+import 'windows_startup.dart';
 
 class AppState extends ChangeNotifier {
   AppState._(this._service);
@@ -41,7 +42,11 @@ class AppState extends ChangeNotifier {
     try {
       await _service.initialise();
       config = await _service.loadSettings();
+      await WindowsStartup.sync(config.startWithWindows);
       snapshot = await _service.snapshot();
+      if (config.startMonitoringAutomatically && !snapshot.monitoring) {
+        snapshot = await _service.startMonitoring();
+      }
       outages = await _service.getOutages(outageRangeDays);
       _pollTimer = Timer.periodic(
         const Duration(seconds: 1),
@@ -111,12 +116,19 @@ class AppState extends ChangeNotifier {
 
   Future<void> saveConfig(NetWatcherConfig value) async {
     try {
+      await WindowsStartup.sync(value.startWithWindows);
       config = await _service.saveSettings(value);
+      snapshot = await _service.snapshot();
       error = null;
     } catch (exception) {
       error = exception.toString();
     }
     notifyListeners();
+  }
+
+  Future<void> setGraphRange(int minutes) async {
+    if (minutes == config.graphRangeMinutes) return;
+    await saveConfig(config.copyWith(graphRangeMinutes: minutes));
   }
 
   Future<void> addTarget(String raw) async {
