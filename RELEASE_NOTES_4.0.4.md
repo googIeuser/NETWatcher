@@ -1,6 +1,6 @@
 # NetWatcher 4.0.4
 
-NetWatcher 4.0.4 restores real latency history and the Windows startup controls in the Rust + Flutter desktop application.
+NetWatcher 4.0.4 restores real latency history and Windows startup controls in the Rust + Flutter desktop application.
 
 ## Restored
 
@@ -16,8 +16,10 @@ NetWatcher 4.0.4 restores real latency history and the Windows startup controls 
 - Keeps up to 24 hours of history in memory and downsamples graph payloads.
 - Prevents widget tests from modifying the Windows startup registry.
 - Prevents the one-second polling timer from blocking Flutter widget tests.
-- Disables obsolete Go CI and release workflows.
-- Converts the stable workflow to a manual build-only workflow; GitHub Releases remain user-published.
+- Fixes narrow-window sidebar overflow.
+- Stabilizes report action widget tests.
+- Disables obsolete automatic portable preview builds.
+- Publishes installer, portable ZIP and checksums through the Stable Release workflow.
 
 ## Release assets
 
