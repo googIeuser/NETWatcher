@@ -377,54 +377,71 @@ class OutagesPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        _PageHeader(
+        const _PageHeader(
           eyebrow: 'HISTORY',
           title: 'Outage history',
           subtitle:
               'Review each confirmed incident with its type, start and end time, duration and diagnostic details.',
-          trailingBreakpoint: 1180,
-          trailing: Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: 170,
-                child: DropdownButtonFormField<int>(
-                  key: ValueKey<int>(state.outageRangeDays),
-                  initialValue: state.outageRangeDays,
-                  decoration: const InputDecoration(labelText: 'History range'),
-                  items: const [
-                    DropdownMenuItem(value: 1, child: Text('Last 24 hours')),
-                    DropdownMenuItem(value: 7, child: Text('Last 7 days')),
-                    DropdownMenuItem(value: 30, child: Text('Last 30 days')),
-                    DropdownMenuItem(value: 365, child: Text('Last year')),
-                    DropdownMenuItem(value: 36500, child: Text('All time')),
-                  ],
-                  onChanged: state.outagesLoading
-                      ? null
-                      : (value) => state.refreshOutages(value ?? 30),
-                ),
-              ),
-              IconButton.filledTonal(
-                tooltip: 'Refresh outage history',
-                onPressed:
-                    state.outagesLoading ? null : () => state.refreshOutages(),
-                icon: const Icon(Icons.refresh),
-              ),
-              IconButton.filledTonal(
-                key: const ValueKey<String>('delete-outage-history'),
-                tooltip: 'Delete outage history',
-                style: IconButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.error,
-                ),
-                onPressed: state.outagesLoading
+        ),
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 420;
+            final range = SizedBox(
+              width: narrow ? constraints.maxWidth : 190,
+              child: DropdownButtonFormField<int>(
+                key: ValueKey<int>(state.outageRangeDays),
+                initialValue: state.outageRangeDays,
+                decoration: const InputDecoration(labelText: 'History range'),
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text('Last 24 hours')),
+                  DropdownMenuItem(value: 7, child: Text('Last 7 days')),
+                  DropdownMenuItem(value: 30, child: Text('Last 30 days')),
+                  DropdownMenuItem(value: 365, child: Text('Last year')),
+                  DropdownMenuItem(value: 36500, child: Text('All time')),
+                ],
+                onChanged: state.outagesLoading
                     ? null
-                    : () => _confirmClearHistory(context),
-                icon: const Icon(Icons.delete_outline_rounded),
+                    : (value) => state.refreshOutages(value ?? 30),
               ),
-            ],
-          ),
+            );
+            final buttons = Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                IconButton.filledTonal(
+                  tooltip: 'Refresh outage history',
+                  onPressed: state.outagesLoading
+                      ? null
+                      : () => state.refreshOutages(),
+                  icon: const Icon(Icons.refresh),
+                ),
+                IconButton.filledTonal(
+                  key: const ValueKey<String>('delete-outage-history'),
+                  tooltip: 'Delete outage history',
+                  style: IconButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: state.outagesLoading
+                      ? null
+                      : () => _confirmClearHistory(context),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
+              ],
+            );
+
+            return Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                key: const ValueKey<String>('outage-history-actions'),
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 10,
+                children: [range, buttons],
+              ),
+            );
+          },
         ),
         const SizedBox(height: 18),
         LayoutBuilder(
@@ -535,31 +552,24 @@ class _OutageSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Panel(
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+            const SizedBox(height: 12),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(height: 7),
-                  Text(
-                    value,
-                    overflow: TextOverflow.visible,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              value,
+              overflow: TextOverflow.visible,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
                   ),
-                ],
-              ),
             ),
           ],
         ),
@@ -582,11 +592,13 @@ class OutageIncidentCard extends StatelessWidget {
         : const Color(0xFF42D99A);
 
     return Panel(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 1050;
-          final heading = Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 13,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Container(
                 width: 44,
@@ -597,62 +609,46 @@ class OutageIncidentCard extends StatelessWidget {
                 ),
                 child: Icon(appearance.icon, color: appearance.color),
               ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 9,
-                      runSpacing: 7,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          appearance.label,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                        ),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: .13),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 5,
-                            ),
-                            child: Text(
-                              incident.active ? 'ACTIVE' : 'RESOLVED',
-                              style: TextStyle(
-                                color: statusColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+              Text(
+                appearance.label,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
                     ),
-                    const SizedBox(height: 7),
-                    Text(
-                      incident.details.isEmpty
-                          ? 'No diagnostic description was recorded.'
-                          : incident.details,
-                      overflow: TextOverflow.visible,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  child: Text(
+                    incident.active ? 'ACTIVE' : 'RESOLVED',
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
-          );
-
-          final timing = Wrap(
+          ),
+          const SizedBox(height: 9),
+          Text(
+            incident.details.isEmpty
+                ? 'No diagnostic description was recorded.'
+                : incident.details,
+            overflow: TextOverflow.visible,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
             spacing: 22,
             runSpacing: 12,
             children: [
@@ -671,27 +667,8 @@ class OutageIncidentCard extends StatelessWidget {
                 value: _formatDuration(incident.durationSeconds),
               ),
             ],
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                heading,
-                const SizedBox(height: 18),
-                timing,
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(flex: 3, child: heading),
-              const SizedBox(width: 24),
-              Flexible(flex: 2, child: timing),
-            ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }

@@ -40,6 +40,7 @@ void main() {
 
     await tester.pumpWidget(NetWatcherApp(state: state));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey<String>('nav-2')));
     await tester.pumpAndSettle();
@@ -70,6 +71,7 @@ void main() {
   testWidgets('outage history actions fit common desktop widths',
       (tester) async {
     for (final size in const [
+      Size(1120, 720),
       Size(1280, 800),
       Size(1366, 900),
       Size(1536, 900),
@@ -83,6 +85,8 @@ void main() {
 
       await tester.pumpWidget(NetWatcherApp(state: state));
       await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
       await tester.tap(find.byKey(const ValueKey<String>('nav-2')));
       await tester.pumpAndSettle();
 
