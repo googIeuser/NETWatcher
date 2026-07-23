@@ -6,8 +6,16 @@ on:
       - main
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Choose a Windows test build or publish the stable release"
+        required: true
+        type: choice
+        options:
+          - test-build
+          - stable-release
+        default: test-build
       version:
-        description: "Stable version without the v prefix"
+        description: "Version without the v prefix"
         required: true
         default: "4.0.4"
 
@@ -15,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: netwatcher-${{ github.workflow }}-${{ github.ref }}
+  group: netwatcher-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
@@ -54,8 +62,8 @@ jobs:
       - name: Run Rust and Flutter checks
         run: .\scripts\test-rust-flutter.ps1
 
-  release:
-    name: Build and publish stable Windows release
+  windows-package:
+    name: Build Windows package
     if: github.event_name == 'workflow_dispatch'
     needs:
       - test
@@ -75,28 +83,39 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve and validate stable version
+      - name: Resolve build mode and version
         run: |
+          $mode = "${{ inputs.mode }}".Trim()
           $version = "${{ inputs.version }}".Trim().TrimStart("v")
 
+          if ($mode -notin @("test-build", "stable-release")) {
+            throw "Unsupported workflow mode: $mode"
+          }
+
           if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            throw "Stable version must use x.y.z format: $version"
+            throw "Version must use x.y.z format: $version"
           }
 
           if ("${{ github.ref_name }}" -ne "main") {
-            throw "Stable releases must be started from the main branch."
+            throw "Windows packages must be built from the main branch."
           }
 
           $notes = "RELEASE_NOTES_$version.md"
-          if (-not (Test-Path $notes)) {
+          if ($mode -eq "stable-release" -and -not (Test-Path $notes)) {
             throw "Release notes file was not found: $notes"
           }
 
+          $label = if ($mode -eq "stable-release") { "Stable" } else { "TEST" }
+
+          "BUILD_MODE=$mode" |
+            Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_VERSION=$version" |
             Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_TAG=v$version" |
             Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_NOTES=$notes" |
+            Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "PACKAGE_LABEL=$label" |
             Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Flutter stable
@@ -119,10 +138,10 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 
-      - name: Build stable assets
+      - name: Build Windows assets
         run: .\scripts\build-stable-release.ps1 -Version "${env:RELEASE_VERSION}"
 
-      - name: Verify stable assets
+      - name: Verify Windows assets
         run: |
           $required = @(
             ".\dist\NetWatcher_Setup_${env:RELEASE_VERSION}.exe",
@@ -133,21 +152,23 @@ jobs:
 
           foreach ($path in $required) {
             if (-not (Test-Path $path)) {
-              throw "Required stable release asset was not produced: $path"
+              throw "Required Windows asset was not produced: $path"
             }
           }
 
-      - name: Upload stable workflow backup
+      - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: NetWatcher-${{ env.RELEASE_TAG }}-Windows-Stable
+          name: NetWatcher-${{ env.RELEASE_TAG }}-Windows-${{ env.PACKAGE_LABEL }}
           path: |
             dist/*.exe
             dist/*.zip
             dist/*.sha256
           if-no-files-found: error
+          retention-days: 30
 
       - name: Create or verify stable tag
+        if: inputs.mode == 'stable-release'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -184,6 +205,7 @@ jobs:
           }
 
       - name: Publish GitHub stable release
+        if: inputs.mode == 'stable-release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
