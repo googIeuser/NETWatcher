@@ -86,6 +86,12 @@ fn main() -> Result<()> {
                 Ok(items) => response(serde_json::to_value(items)?),
                 Err(error) => error_response(error),
             },
+            "clear_outages" => {
+                match engine.clear_outage_history(request.days.unwrap_or(30)) {
+                    Ok(items) => response(serde_json::to_value(items)?),
+                    Err(error) => error_response(error),
+                }
+            },
             "generate_html_report" => match reports::generate_html(&store, request.hours.unwrap_or(24)) {
                 Ok(mut report) => {
                     if let Err(error) = platform::open_file(&report.path) {

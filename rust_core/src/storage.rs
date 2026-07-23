@@ -118,6 +118,18 @@ impl Store {
         )
     }
 
+    pub fn clear_outages(&self) -> Result<()> {
+        let _guard = self.lock.lock().expect("storage lock poisoned");
+        for name in ["outages.csv", "outages_v3.csv", "outages_v4.csv"] {
+            let path = self.dir.join(name);
+            if path.exists() {
+                fs::remove_file(&path)
+                    .with_context(|| format!("failed to delete {}", path.display()))?;
+            }
+        }
+        Ok(())
+    }
+
     fn delimiter(path: &Path) -> u8 {
         fs::read_to_string(path)
             .ok()
@@ -355,5 +367,39 @@ impl Store {
         }
         files.sort();
         Ok(files)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Store;
+    use std::{
+        env, fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    #[test]
+    fn clear_outages_removes_current_and_legacy_files() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock before unix epoch")
+            .as_nanos();
+        let dir = env::temp_dir().join(format!(
+            "netwatcher-storage-test-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).expect("create test directory");
+        for name in ["outages.csv", "outages_v3.csv", "outages_v4.csv"] {
+            fs::write(dir.join(name), "start,end,category,details,duration_seconds\n")
+                .expect("write outage file");
+        }
+
+        let store = Store::new_at(dir.clone());
+        store.clear_outages().expect("clear outage history");
+
+        for name in ["outages.csv", "outages_v3.csv", "outages_v4.csv"] {
+            assert!(!dir.join(name).exists(), "{name} should be deleted");
+        }
+        let _ = fs::remove_dir_all(dir);
     }
 }
