@@ -1,4 +1,4 @@
-name: NetWatcher Stable Release
+name: NetWatcher Stable Build
 
 on:
   workflow_dispatch:
@@ -9,15 +9,15 @@ on:
         default: "4.0.4"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: netwatcher-stable-release
+  group: netwatcher-stable-build
   cancel-in-progress: false
 
 jobs:
-  windows-stable-release:
-    name: Build and publish stable release
+  windows-stable-build:
+    name: Build stable Windows packages
     runs-on: windows-2022
     timeout-minutes: 75
 
@@ -38,7 +38,7 @@ jobs:
           }
 
           if ("${{ github.ref_name }}" -ne "main") {
-            throw "Stable releases must be started from the main branch."
+            throw "Stable builds must be started from the main branch."
           }
 
           $notes = "RELEASE_NOTES_$version.md"
@@ -49,8 +49,6 @@ jobs:
           "RELEASE_VERSION=$version" |
             Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_TAG=v$version" |
-            Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "RELEASE_NOTES=$notes" |
             Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Flutter stable
@@ -68,7 +66,6 @@ jobs:
           flutter doctor -v
           rustc --version
           cargo --version
-          gh --version
 
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
@@ -87,11 +84,11 @@ jobs:
 
           foreach ($path in $required) {
             if (-not (Test-Path $path)) {
-              throw "Required stable release asset was not produced: $path"
+              throw "Required stable asset was not produced: $path"
             }
           }
 
-      - name: Upload stable workflow artifact
+      - name: Upload stable release files
         uses: actions/upload-artifact@v4
         with:
           name: NetWatcher-${{ env.RELEASE_TAG }}-Windows-Stable
@@ -100,32 +97,3 @@ jobs:
             dist/*.zip
             dist/*.sha256
           if-no-files-found: error
-
-      - name: Publish GitHub stable release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $assets = @(
-            Get-ChildItem .\dist -File |
-              Where-Object {
-                $_.Name -like "*.exe" -or
-                $_.Name -like "*.zip" -or
-                $_.Name -like "*.sha256"
-              } |
-              ForEach-Object { $_.FullName }
-          )
-
-          if ($assets.Count -lt 4) {
-            throw "Stable release assets are incomplete."
-          }
-
-          gh release create "${env:RELEASE_TAG}" @assets `
-            --repo "${env:GITHUB_REPOSITORY}" `
-            --target "${env:GITHUB_SHA}" `
-            --title "NetWatcher ${env:RELEASE_VERSION}" `
-            --notes-file "${env:RELEASE_NOTES}" `
-            --latest
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "GitHub stable release publication failed."
-          }
