@@ -1,0 +1,78 @@
+name: NetWatcher Test Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build for testing"
+        required: true
+        default: "4.0.4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: netwatcher-test-build
+  cancel-in-progress: true
+
+jobs:
+  windows-test-build:
+    name: Build Windows test packages
+    runs-on: windows-2022
+    timeout-minutes: 75
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Resolve and validate test version
+        run: |
+          $version = "${{ inputs.version }}".Trim().TrimStart("v")
+
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Test version must use x.y.z format: $version"
+          }
+
+          if ("${{ github.ref_name }}" -ne "main") {
+            throw "Test builds must be started from the main branch."
+          }
+
+          "TEST_VERSION=$version" |
+            Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install Flutter stable
+        run: |
+          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git C:\flutter
+          "C:\flutter\bin" |
+            Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure Rust and Flutter
+        run: |
+          rustup update stable
+          rustup default stable
+          flutter config --enable-windows-desktop
+          flutter --version
+          flutter doctor -v
+          rustc --version
+          cargo --version
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Test and build Windows packages
+        run: .\scripts\build-stable-release.ps1 -Version "${env:TEST_VERSION}"
+
+      - name: Upload test packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetWatcher-v${{ env.TEST_VERSION }}-Windows-TEST
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
