@@ -5,21 +5,9 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "flutter_app/**"
-      - "rust_core/**"
-      - "scripts/**"
-      - "installer/**"
-      - ".github/workflows/**"
   pull_request:
     branches:
       - main
-    paths:
-      - "flutter_app/**"
-      - "rust_core/**"
-      - "scripts/**"
-      - "installer/**"
-      - ".github/workflows/**"
 
 permissions:
   contents: read
