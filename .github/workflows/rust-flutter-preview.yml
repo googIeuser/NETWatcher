@@ -1,17 +1,65 @@
-name: NetWatcher Preview Build (disabled)
+name: NetWatcher CI
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "flutter_app/**"
+      - "rust_core/**"
+      - "scripts/**"
+      - "installer/**"
+      - ".github/workflows/rust-flutter-preview.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "flutter_app/**"
+      - "rust_core/**"
+      - "scripts/**"
+      - "installer/**"
+      - ".github/workflows/rust-flutter-preview.yml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: netwatcher-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  information:
-    name: Preview builds are disabled
-    runs-on: ubuntu-latest
+  windows-ci:
+    name: Test Rust and Flutter
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        shell: pwsh
+
     steps:
-      - name: Stable release information
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Install Flutter stable
         run: |
-          echo "Automatic portable preview builds are disabled."
-          echo "Use Actions > NetWatcher Stable Release > Run workflow."
+          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git C:\flutter
+          "C:\flutter\bin" |
+            Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure Rust and Flutter
+        run: |
+          rustup update stable
+          rustup default stable
+          flutter config --enable-windows-desktop
+          flutter --version
+          flutter doctor -v
+          rustc --version
+          cargo --version
+
+      - name: Prepare Flutter Windows runner
+        run: .\scripts\prepare-flutter-windows.ps1
+
+      - name: Run Rust and Flutter checks
+        run: .\scripts\test-rust-flutter.ps1
