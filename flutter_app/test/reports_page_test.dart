@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:netwatcher/app.dart';
 import 'package:netwatcher/app_state.dart';
+import 'package:netwatcher/mock_core_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('reports page exposes working report actions', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1366, 900));
-    final state = await AppState.create();
+    final state = await AppState.create(
+      service: MockCoreService(),
+      pollSnapshots: false,
+      manageWindowsStartup: false,
+    );
     await tester.pumpWidget(NetWatcherApp(state: state));
     await tester.pumpAndSettle();
 
