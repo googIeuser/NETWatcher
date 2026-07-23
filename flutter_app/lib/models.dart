@@ -161,6 +161,25 @@ class TargetInfo {
       );
 }
 
+class LatencySample {
+  const LatencySample({
+    required this.time,
+    required this.latency,
+    required this.success,
+  });
+
+  final DateTime time;
+  final double latency;
+  final bool success;
+
+  factory LatencySample.fromJson(Map<String, dynamic> json) => LatencySample(
+        time: DateTime.tryParse(json['time']?.toString() ?? '')?.toLocal() ??
+            DateTime.now(),
+        latency: (json['latency'] as num?)?.toDouble() ?? 0,
+        success: json['success'] as bool? ?? false,
+      );
+}
+
 class TargetStatus {
   const TargetStatus({
     required this.target,
@@ -169,6 +188,7 @@ class TargetStatus {
     required this.packetLoss,
     required this.jitter,
     this.message = '',
+    this.history = const [],
   });
 
   final TargetInfo target;
@@ -177,6 +197,7 @@ class TargetStatus {
   final double packetLoss;
   final double jitter;
   final String message;
+  final List<LatencySample> history;
 
   factory TargetStatus.fromJson(Map<String, dynamic> json) => TargetStatus(
         target:
@@ -186,6 +207,10 @@ class TargetStatus {
         packetLoss: (json['packetLoss'] as num?)?.toDouble() ?? 0,
         jitter: (json['jitter'] as num?)?.toDouble() ?? 0,
         message: json['message'] as String? ?? '',
+        history: (json['history'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(LatencySample.fromJson)
+            .toList(growable: false),
       );
 }
 
@@ -267,7 +292,6 @@ class NetworkSnapshot {
   }
 }
 
-
 class OutageRecord {
   const OutageRecord({
     required this.start,
@@ -295,7 +319,6 @@ class OutageRecord {
         active: json['active'] as bool? ?? false,
       );
 }
-
 
 class ReportResult {
   const ReportResult({

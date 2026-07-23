@@ -309,11 +309,40 @@ class _TargetMetric extends StatelessWidget {
 }
 
 class LatencyChart extends StatelessWidget {
-  const LatencyChart({super.key, required this.targets});
+  const LatencyChart({
+    super.key,
+    required this.targets,
+    this.rangeMinutes = 5,
+  });
+
   final List<TargetStatus> targets;
+  final int rangeMinutes;
 
   @override
   Widget build(BuildContext context) {
+    final visibleTargets = targets
+        .where((target) => target.history.isNotEmpty)
+        .toList(growable: false);
+
+    if (visibleTargets.isEmpty) {
+      return const SizedBox(
+        height: 280,
+        child: Center(
+          child: Text('Latency history will appear after measurements arrive.'),
+        ),
+      );
+    }
+
+    final scheme = Theme.of(context).colorScheme;
+    final colors = <Color>[
+      scheme.primary,
+      scheme.tertiary,
+      scheme.secondary,
+      scheme.error,
+      scheme.primary.withValues(alpha: .65),
+      scheme.tertiary.withValues(alpha: .65),
+    ];
+
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
       duration: NetWatcherMotion.slow,
@@ -325,16 +354,50 @@ class LatencyChart extends StatelessWidget {
           child: child,
         ),
       ),
-      child: SizedBox(
-        height: 260,
-        child: CustomPaint(
-          painter: _LatencyPainter(
-            color: Theme.of(context).colorScheme.primary,
-            grid: Theme.of(context).dividerColor,
-            targets: targets,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 280,
+            child: CustomPaint(
+              painter: _LatencyPainter(
+                grid: Theme.of(context).dividerColor,
+                textColor: scheme.onSurfaceVariant,
+                targets: visibleTargets,
+                colors: colors,
+                rangeMinutes: rangeMinutes,
+              ),
+              child: const SizedBox.expand(),
+            ),
           ),
-          child: const SizedBox.expand(),
-        ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              for (var index = 0; index < visibleTargets.length; index++)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colors[index % colors.length],
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      '${visibleTargets[index].target.name}: '
+                      '${visibleTargets[index].latency.toStringAsFixed(1)} ms',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -342,74 +405,149 @@ class LatencyChart extends StatelessWidget {
 
 class _LatencyPainter extends CustomPainter {
   _LatencyPainter({
-    required this.color,
     required this.grid,
+    required this.textColor,
     required this.targets,
+    required this.colors,
+    this.rangeMinutes = 5,
   });
 
-  final Color color;
   final Color grid;
+  final Color textColor;
   final List<TargetStatus> targets;
+  final List<Color> colors;
+  final int rangeMinutes;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final now = DateTime.now();
+    final start = now.subtract(Duration(minutes: rangeMinutes));
+    final plot = Rect.fromLTRB(50, 12, size.width - 12, size.height - 32);
+
+    final successful = <LatencySample>[
+      for (final target in targets)
+        for (final sample in target.history)
+          if (sample.success && !sample.time.isBefore(start)) sample,
+    ];
+
+    final rawMax = successful.isEmpty
+        ? 0.0
+        : successful.map((sample) => sample.latency).reduce(math.max);
+    final maxValue =
+        math.max(50.0, (rawMax / 10.0).ceilToDouble() * 10.0).toDouble();
+
     final gridPaint = Paint()
       ..color = grid
       ..strokeWidth = 1;
-    for (var index = 0; index <= 4; index++) {
-      final y = size.height * index / 4;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-    if (targets.isEmpty) return;
 
-    final seed = targets.map((target) => target.latency).fold<double>(
-          0,
-          (sum, value) => sum + value,
-        ) /
-        targets.length;
-    final values = List<double>.generate(
-      48,
-      (index) => math.max(
-        2,
-        seed + math.sin(index / 3) * 3 + (index % 9 == 0 ? 5 : 0),
-      ),
-    );
-    final maxValue = math.max(50, values.reduce(math.max) * 1.2);
-    final path = Path();
-    for (var index = 0; index < values.length; index++) {
-      final x = size.width * index / (values.length - 1);
-      final y = size.height - (values[index] / maxValue * size.height);
-      if (index == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+    for (var index = 0; index <= 4; index++) {
+      final fraction = index / 4;
+      final y = plot.bottom - plot.height * fraction;
+      canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y), gridPaint);
+      _drawText(
+        canvas,
+        '${(maxValue * fraction).round()} ms',
+        Offset(0, y - 7),
+        textColor,
+        maxWidth: 46,
+        align: TextAlign.right,
+      );
     }
-    final fill = Path.from(path)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(
-      fill,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [color.withValues(alpha: .24), color.withValues(alpha: 0)],
-        ).createShader(Offset.zero & size),
+
+    for (var index = 0; index <= 4; index++) {
+      final x = plot.left + plot.width * index / 4;
+      canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint);
+    }
+
+    _drawText(
+      canvas,
+      _formatTime(start),
+      Offset(plot.left, plot.bottom + 8),
+      textColor,
     );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+    _drawText(
+      canvas,
+      _formatTime(start.add(Duration(minutes: rangeMinutes ~/ 2))),
+      Offset(plot.center.dx - 22, plot.bottom + 8),
+      textColor,
     );
+    _drawText(
+      canvas,
+      _formatTime(now),
+      Offset(plot.right - 42, plot.bottom + 8),
+      textColor,
+    );
+
+    final rangeMs = Duration(minutes: rangeMinutes).inMilliseconds.toDouble();
+    for (var targetIndex = 0; targetIndex < targets.length; targetIndex++) {
+      final samples = targets[targetIndex]
+          .history
+          .where((sample) => !sample.time.isBefore(start))
+          .toList(growable: false);
+      if (samples.isEmpty) continue;
+
+      final path = Path();
+      var drawing = false;
+      for (final sample in samples) {
+        if (!sample.success) {
+          drawing = false;
+          continue;
+        }
+        final elapsed = sample.time.difference(start).inMilliseconds.toDouble();
+        final x = plot.left +
+            (elapsed / rangeMs).clamp(0.0, 1.0).toDouble() * plot.width;
+        final y = plot.bottom -
+            (sample.latency / maxValue).clamp(0.0, 1.0).toDouble() *
+                plot.height;
+        if (!drawing) {
+          path.moveTo(x, y);
+          drawing = true;
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = colors[targetIndex % colors.length]
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+  }
+
+  static String _formatTime(DateTime value) {
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(value.hour)}:${two(value.minute)}';
+  }
+
+  static void _drawText(
+    Canvas canvas,
+    String text,
+    Offset offset,
+    Color color, {
+    double maxWidth = 64,
+    TextAlign align = TextAlign.left,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(color: color, fontSize: 10),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: align,
+      maxLines: 1,
+    )..layout(maxWidth: maxWidth);
+    painter.paint(canvas, offset);
   }
 
   @override
   bool shouldRepaint(covariant _LatencyPainter oldDelegate) =>
       oldDelegate.targets != targets ||
-      oldDelegate.color != color ||
-      oldDelegate.grid != grid;
+      oldDelegate.grid != grid ||
+      oldDelegate.textColor != textColor ||
+      oldDelegate.rangeMinutes != rangeMinutes;
 }
