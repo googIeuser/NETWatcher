@@ -94,6 +94,10 @@ void main() {
         find.byKey(const ValueKey<String>('delete-outage-history')),
         findsOneWidget,
       );
+      final rangeField = tester.widget<DropdownButtonFormField<int>>(
+        find.byType(DropdownButtonFormField<int>),
+      );
+      expect(rangeField.isExpanded, isTrue);
       expect(tester.takeException(), isNull);
 
       state.dispose();
