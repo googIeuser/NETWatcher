@@ -21,7 +21,6 @@ It continuously measures latency, jitter and packet loss, distinguishes local-ne
 - Records both monitoring start and monitoring stop actions in Recent events
 - Restored start-with-Windows, start-minimized and automatic-monitoring controls
 - Improved responsive layouts for common Windows desktop sizes
-- Consolidated testing, Windows test packages and stable publication into one workflow
 
 See [RELEASE_NOTES_4.0.4.md](RELEASE_NOTES_4.0.4.md) for the complete release summary.
 
@@ -223,44 +222,6 @@ NetWatcher_Setup_4.0.4.exe.sha256
 NetWatcher_4.0.4_Windows_Portable.zip
 NetWatcher_4.0.4_Windows_Portable.zip.sha256
 ```
-
-## GitHub Actions workflow
-
-NetWatcher uses one workflow named **NetWatcher Stable Release**.
-
-### Push testing
-
-Every push to `main` automatically runs the Rust and Flutter checks. A normal push does not create a package, tag or GitHub Release.
-
-### Windows test package
-
-1. Open **Actions → NetWatcher Stable Release**
-2. Select **Run workflow** on `main`
-3. Choose `test-build`
-4. Enter the version used by Flutter and Rust
-5. Download the generated Windows TEST artifact
-
-`test-build` does not create a tag or GitHub Release.
-
-### Stable publication
-
-After the test package has been approved:
-
-1. Update `CHANGELOG.md`
-2. Add `RELEASE_NOTES_x.y.z.md`
-3. Open **Actions → NetWatcher Stable Release**
-4. Choose `stable-release`
-5. Enter the matching version
-
-The workflow tests the project again, builds the installer and portable ZIP, creates the version tag and publishes the GitHub Release with SHA256 files.
-
-See [docs/RELEASING.md](docs/RELEASING.md) for the complete release procedure.
-
-## Scope
-
-**Access Mode and GoodbyeDPI are not included in NetWatcher.**
-
-NetWatcher focuses on connection monitoring, outage evidence, local diagnostics and reporting.
 
 ## Contributing and security
 
