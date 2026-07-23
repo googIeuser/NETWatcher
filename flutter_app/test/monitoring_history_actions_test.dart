@@ -43,6 +43,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey<String>('nav-2')));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
 
     expect(state.outages, isNotEmpty);
     expect(
@@ -54,6 +55,7 @@ void main() {
       find.byKey(const ValueKey<String>('delete-outage-history')),
     );
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
 
     expect(find.text('Delete outage history?'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
