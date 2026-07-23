@@ -196,6 +196,16 @@ impl Engine {
         Ok(outages)
     }
 
+    pub fn clear_outage_history(&self, days: i64) -> anyhow::Result<Vec<Outage>> {
+        self.store.clear_outages()?;
+        {
+            let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
+            snapshot.outages = 0;
+            snapshot.updated_at = Utc::now().to_rfc3339();
+        }
+        self.outage_history(days)
+    }
+
     fn push_event(&self, level: &str, category: &str, message: String) {
         let event = Event {
             time: Utc::now().to_rfc3339(),
@@ -239,16 +249,21 @@ impl Engine {
     }
 
     pub fn stop(&self) -> Snapshot {
-        self.running.store(false, Ordering::SeqCst);
+        if !self.running.swap(false, Ordering::SeqCst) {
+            return self.snapshot();
+        }
         if let Some(handle) = self.worker.lock().expect("worker lock poisoned").take() {
             let _ = handle.join();
         }
-        let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
-        snapshot.monitoring = false;
-        snapshot.connection_state = "waiting".into();
-        snapshot.connection_label = "Monitoring stopped".into();
-        snapshot.updated_at = Utc::now().to_rfc3339();
-        snapshot.clone()
+        {
+            let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
+            snapshot.monitoring = false;
+            snapshot.connection_state = "waiting".into();
+            snapshot.connection_label = "Monitoring stopped".into();
+            snapshot.updated_at = Utc::now().to_rfc3339();
+        }
+        self.push_event("info", "monitor", "Monitoring stopped.".into());
+        self.snapshot()
     }
 
     fn classify(statuses: &[TargetStatus], high_latency: f64) -> (&'static str, String) {
