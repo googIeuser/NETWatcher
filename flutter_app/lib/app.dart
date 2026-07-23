@@ -219,9 +219,7 @@ class _DesktopSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: NetWatcherMotion.normal,
-      curve: NetWatcherMotion.curve,
+    return Container(
       width: expanded ? 228 : 82,
       color: Theme.of(context).navigationRailTheme.backgroundColor,
       child: SafeArea(
