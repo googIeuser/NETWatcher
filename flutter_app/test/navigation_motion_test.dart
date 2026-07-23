@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:netwatcher/app.dart';
 import 'package:netwatcher/app_state.dart';
+import 'package:netwatcher/mock_core_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -10,7 +10,11 @@ void main() {
   testWidgets('desktop navigation is clickable and changes page smoothly',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1366, 768));
-    final state = await AppState.create();
+    final state = await AppState.create(
+      service: MockCoreService(),
+      pollSnapshots: false,
+      manageWindowsStartup: false,
+    );
     await tester.pumpWidget(NetWatcherApp(state: state));
     await tester.pumpAndSettle();
 
@@ -32,7 +36,11 @@ void main() {
 
   testWidgets('theme changes use a non-zero smooth animation', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1024, 768));
-    final state = await AppState.create();
+    final state = await AppState.create(
+      service: MockCoreService(),
+      pollSnapshots: false,
+      manageWindowsStartup: false,
+    );
     await tester.pumpWidget(NetWatcherApp(state: state));
     await tester.pumpAndSettle();
 
