@@ -1,6 +1,6 @@
 ; NetWatcher 4 stable installer
 #ifndef MyAppVersion
-  #define MyAppVersion "4.0.3"
+  #define MyAppVersion "4.0.4"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\flutter_app\build\windows\x64\runner\Release"
@@ -12,8 +12,8 @@
 #define MyAppName "NetWatcher"
 #define MyAppPublisher "NetWatcher Contributors"
 #define MyAppExeName "netwatcher.exe"
-#define MyAppIconName "NetWatcher_4.0.3.ico"
-#define MyAppUserModelId "com.netwatcher.NetWatcher.4.0.3"
+#define MyAppIconName "NetWatcher_" + MyAppVersion + ".ico"
+#define MyAppUserModelId "com.netwatcher.NetWatcher"
 
 [Setup]
 AppId={{E95B6876-8D42-4F38-90AD-2E5EC83A8C16}

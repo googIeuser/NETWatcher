@@ -3,7 +3,15 @@ $repo = Split-Path -Parent $PSScriptRoot
 $flutter = Join-Path $repo "flutter_app"
 $rust = Join-Path $repo "rust_core"
 $dist = Join-Path $repo "dist"
-$version = "4.0.3-preview"
+$pubspecText = Get-Content (Join-Path $flutter "pubspec.yaml") -Raw
+$versionMatch = [regex]::Match(
+    $pubspecText,
+    '(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+\d+)?\s*$'
+)
+if (-not $versionMatch.Success) {
+    throw "Flutter application version was not found."
+}
+$version = "$($versionMatch.Groups[1].Value)-preview"
 
 & (Join-Path $PSScriptRoot "prepare-flutter-windows.ps1")
 & (Join-Path $PSScriptRoot "test-rust-flutter.ps1")

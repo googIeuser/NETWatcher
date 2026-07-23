@@ -1,39 +1,13 @@
-name: CI
+name: Legacy Go CI (disabled)
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  test:
+  information:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-      - name: Test with race detector
-        run: go test -race ./...
-      - name: Vet
-        run: go vet ./...
-      - name: Cross-build Windows AMD64
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: 0
-        run: go build -trimpath -ldflags="-s -w -H=windowsgui" -o dist/NetWatcher_Setup_CI.exe .
-      - name: Compile Windows tests
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: 0
-        run: go test -c -o dist/NetWatcher_Windows_Tests.exe .
-      - uses: actions/upload-artifact@v7
-        with:
-          name: NetWatcher-Windows-CI
-          path: dist/NetWatcher_Setup_CI.exe
-          if-no-files-found: error
+      - run: echo "Legacy Go CI is disabled. Use Rust Flutter Preview instead."

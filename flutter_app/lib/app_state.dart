@@ -9,9 +9,16 @@ import 'process_core_service.dart';
 import 'windows_startup.dart';
 
 class AppState extends ChangeNotifier {
-  AppState._(this._service);
+  AppState._(
+    this._service, {
+    required bool pollSnapshots,
+    required bool manageWindowsStartup,
+  })  : _pollSnapshots = pollSnapshots,
+        _manageWindowsStartup = manageWindowsStartup;
 
   final CoreService _service;
+  final bool _pollSnapshots;
+  final bool _manageWindowsStartup;
   Timer? _pollTimer;
   NetWatcherConfig config = const NetWatcherConfig();
   NetworkSnapshot snapshot = const NetworkSnapshot();
@@ -26,14 +33,28 @@ class AppState extends ChangeNotifier {
   int _outagePollTicks = 0;
   bool _shuttingDown = false;
 
-  static Future<AppState> create() async {
-    CoreService service;
-    try {
-      service = await ProcessCoreService.tryCreate() ?? MockCoreService();
-    } catch (_) {
-      service = MockCoreService();
+  static Future<AppState> create({
+    CoreService? service,
+    bool pollSnapshots = true,
+    bool manageWindowsStartup = true,
+  }) async {
+    CoreService resolvedService;
+    if (service != null) {
+      resolvedService = service;
+    } else {
+      try {
+        resolvedService =
+            await ProcessCoreService.tryCreate() ?? MockCoreService();
+      } catch (_) {
+        resolvedService = MockCoreService();
+      }
     }
-    final state = AppState._(service);
+
+    final state = AppState._(
+      resolvedService,
+      pollSnapshots: pollSnapshots,
+      manageWindowsStartup: manageWindowsStartup,
+    );
     await state._initialise();
     return state;
   }
@@ -42,16 +63,28 @@ class AppState extends ChangeNotifier {
     try {
       await _service.initialise();
       config = await _service.loadSettings();
-      await WindowsStartup.sync(config.startWithWindows);
+
+      String? startupError;
+      if (_manageWindowsStartup) {
+        try {
+          await WindowsStartup.sync(config.startWithWindows);
+        } catch (exception) {
+          startupError = exception.toString();
+        }
+      }
+
       snapshot = await _service.snapshot();
       if (config.startMonitoringAutomatically && !snapshot.monitoring) {
         snapshot = await _service.startMonitoring();
       }
       outages = await _service.getOutages(outageRangeDays);
-      _pollTimer = Timer.periodic(
-        const Duration(seconds: 1),
-        (_) => refreshSnapshot(),
-      );
+      if (_pollSnapshots) {
+        _pollTimer = Timer.periodic(
+          const Duration(seconds: 1),
+          (_) => refreshSnapshot(),
+        );
+      }
+      error = startupError;
     } catch (exception) {
       error = exception.toString();
     } finally {
@@ -116,9 +149,11 @@ class AppState extends ChangeNotifier {
 
   Future<void> saveConfig(NetWatcherConfig value) async {
     try {
-      await WindowsStartup.sync(value.startWithWindows);
       config = await _service.saveSettings(value);
       snapshot = await _service.snapshot();
+      if (_manageWindowsStartup) {
+        await WindowsStartup.sync(config.startWithWindows);
+      }
       error = null;
     } catch (exception) {
       error = exception.toString();
