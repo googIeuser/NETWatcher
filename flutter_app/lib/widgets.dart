@@ -127,8 +127,14 @@ class MetricCard extends StatelessWidget {
 }
 
 class TargetCard extends StatelessWidget {
-  const TargetCard({super.key, required this.status});
+  const TargetCard({
+    super.key,
+    required this.status,
+    this.showTopDivider = true,
+  });
+
   final TargetStatus status;
+  final bool showTopDivider;
 
   Color _stateColor(BuildContext context) {
     return switch (status.state) {
@@ -146,9 +152,11 @@ class TargetCard extends StatelessWidget {
       curve: NetWatcherMotion.curve,
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor),
-        ),
+        border: showTopDivider
+            ? Border(
+                top: BorderSide(color: Theme.of(context).dividerColor),
+              )
+            : null,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -334,13 +342,13 @@ class LatencyChart extends StatelessWidget {
     }
 
     final scheme = Theme.of(context).colorScheme;
-    final colors = <Color>[
-      scheme.primary,
-      scheme.tertiary,
-      scheme.secondary,
-      scheme.error,
-      scheme.primary.withValues(alpha: .65),
-      scheme.tertiary.withValues(alpha: .65),
+    const colors = <Color>[
+      Color(0xFF4DA3FF),
+      Color(0xFFFF5FD2),
+      Color(0xFFFFD166),
+      Color(0xFF5BE7A9),
+      Color(0xFF9B8CFF),
+      Color(0xFFFF7A59),
     ];
 
     return TweenAnimationBuilder<double>(
@@ -362,7 +370,7 @@ class LatencyChart extends StatelessWidget {
             child: CustomPaint(
               painter: _LatencyPainter(
                 grid: Theme.of(context).dividerColor,
-                textColor: scheme.onSurfaceVariant,
+                textColor: scheme.onSurface.withValues(alpha: .88),
                 targets: visibleTargets,
                 colors: colors,
                 rangeMinutes: rangeMinutes,
@@ -380,18 +388,28 @@ class LatencyChart extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 9,
-                      height: 9,
+                      width: 10,
+                      height: 10,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: colors[index % colors.length],
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors[index % colors.length]
+                                .withValues(alpha: .38),
+                            blurRadius: 8,
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 7),
                     Text(
                       '${visibleTargets[index].target.name}: '
                       '${visibleTargets[index].latency.toStringAsFixed(1)} ms',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ],
                 ),
@@ -422,7 +440,7 @@ class _LatencyPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final now = DateTime.now();
     final start = now.subtract(Duration(minutes: rangeMinutes));
-    final plot = Rect.fromLTRB(50, 12, size.width - 12, size.height - 32);
+    final plot = Rect.fromLTRB(64, 12, size.width - 14, size.height - 34);
 
     final successful = <LatencySample>[
       for (final target in targets)
@@ -433,11 +451,14 @@ class _LatencyPainter extends CustomPainter {
     final rawMax = successful.isEmpty
         ? 0.0
         : successful.map((sample) => sample.latency).reduce(math.max);
-    final maxValue =
-        math.max(50.0, (rawMax / 10.0).ceilToDouble() * 10.0).toDouble();
+    final axisStep = math.max(
+      10.0,
+      ((rawMax / 4) / 10).ceilToDouble() * 10,
+    );
+    final maxValue = axisStep * 4;
 
     final gridPaint = Paint()
-      ..color = grid
+      ..color = grid.withValues(alpha: .72)
       ..strokeWidth = 1;
 
     for (var index = 0; index <= 4; index++) {
@@ -447,10 +468,12 @@ class _LatencyPainter extends CustomPainter {
       _drawText(
         canvas,
         '${(maxValue * fraction).round()} ms',
-        Offset(0, y - 7),
+        Offset(0, y - 8),
         textColor,
-        maxWidth: 46,
+        maxWidth: 58,
         align: TextAlign.right,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
       );
     }
 
@@ -464,18 +487,24 @@ class _LatencyPainter extends CustomPainter {
       _formatTime(start),
       Offset(plot.left, plot.bottom + 8),
       textColor,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
     );
     _drawText(
       canvas,
       _formatTime(start.add(Duration(minutes: rangeMinutes ~/ 2))),
       Offset(plot.center.dx - 22, plot.bottom + 8),
       textColor,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
     );
     _drawText(
       canvas,
       _formatTime(now),
       Offset(plot.right - 42, plot.bottom + 8),
       textColor,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
     );
 
     final rangeMs = Duration(minutes: rangeMinutes).inMilliseconds.toDouble();
@@ -487,6 +516,7 @@ class _LatencyPainter extends CustomPainter {
       if (samples.isEmpty) continue;
 
       final path = Path();
+      Offset? latestPoint;
       var drawing = false;
       for (final sample in samples) {
         if (!sample.success) {
@@ -499,6 +529,7 @@ class _LatencyPainter extends CustomPainter {
         final y = plot.bottom -
             (sample.latency / maxValue).clamp(0.0, 1.0).toDouble() *
                 plot.height;
+        latestPoint = Offset(x, y);
         if (!drawing) {
           path.moveTo(x, y);
           drawing = true;
@@ -507,15 +538,35 @@ class _LatencyPainter extends CustomPainter {
         }
       }
 
+      final color = colors[targetIndex % colors.length];
       canvas.drawPath(
         path,
         Paint()
-          ..color = colors[targetIndex % colors.length]
+          ..color = color.withValues(alpha: .22)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
+          ..strokeWidth = 8
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.2
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round,
       );
+
+      if (latestPoint != null) {
+        canvas.drawCircle(
+          latestPoint,
+          6,
+          Paint()..color = color.withValues(alpha: .20),
+        );
+        canvas.drawCircle(latestPoint, 2.8, Paint()..color = color);
+      }
     }
   }
 
@@ -529,13 +580,19 @@ class _LatencyPainter extends CustomPainter {
     String text,
     Offset offset,
     Color color, {
-    double maxWidth = 64,
+    double maxWidth = 72,
     TextAlign align = TextAlign.left,
+    double fontSize = 10,
+    FontWeight fontWeight = FontWeight.w500,
   }) {
     final painter = TextPainter(
       text: TextSpan(
         text: text,
-        style: TextStyle(color: color, fontSize: 10),
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+        ),
       ),
       textDirection: TextDirection.ltr,
       textAlign: align,
@@ -549,5 +606,6 @@ class _LatencyPainter extends CustomPainter {
       oldDelegate.targets != targets ||
       oldDelegate.grid != grid ||
       oldDelegate.textColor != textColor ||
+      oldDelegate.colors != colors ||
       oldDelegate.rangeMinutes != rangeMinutes;
 }

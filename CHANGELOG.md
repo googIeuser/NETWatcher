@@ -1,3 +1,17 @@
+# Changelog
+
+## 4.0.4 - 2026-07-23
+
+- Restored real per-target latency history from local measurement logs.
+- Restored 5-minute, 30-minute, 1-hour and 24-hour graph ranges.
+- Improved graph contrast with brighter series colors, thicker lines and latest-sample markers.
+- Changed the millisecond axis to readable rounded intervals.
+- Replaced the dashboard range dropdown with a filled History range field.
+- Removed the empty divider strip above the first Statistics target row.
+- Restored Windows startup, start-minimized and automatic monitoring controls.
+- Fixed Flutter widget-test timeouts and prevented tests from changing the Windows startup registry.
+- Consolidated push testing, Windows test packages and stable publication into one workflow.
+
 ## 3.0.0 - 2026-07-21
 
 - Replaced the manually positioned Win32 interface with a responsive Wails, React and TypeScript frontend.
@@ -24,8 +38,6 @@
 - Prevented toolbar, checkbox, and footer controls from overlapping.
 - Increased button widths so labels remain fully visible.
 - Improved Settings card/background consistency.
-
-# Changelog
 
 ## [2.2.4] - 2026-07-21
 

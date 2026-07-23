@@ -297,10 +297,17 @@ class StatisticsPage extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Panel(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            hoverEffect: false,
             child: Column(
               children: [
-                for (final item in state.snapshot.targets)
-                  TargetCard(status: item),
+                for (var index = 0;
+                    index < state.snapshot.targets.length;
+                    index++)
+                  TargetCard(
+                    status: state.snapshot.targets[index],
+                    showTopDivider: index > 0,
+                  ),
               ],
             ),
           ),
