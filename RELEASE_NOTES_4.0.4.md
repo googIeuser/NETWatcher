@@ -17,6 +17,8 @@ NetWatcher 4.0.4 restores real latency history and Windows startup controls in t
 - Makes chart labels, lines and latest sample markers easier to read.
 - Replaces the compact latency range dropdown with the same filled History range control used elsewhere.
 - Removes the empty divider strip above the first row on the Statistics page.
+- Adds a confirmation-protected button for deleting saved outage history.
+- Records “Monitoring stopped.” in Recent events when monitoring is stopped.
 - Keeps the responsive sidebar and report pages stable at common Windows sizes.
 
 ## Reliability and release flow

@@ -319,6 +319,47 @@ class OutagesPage extends StatelessWidget {
   const OutagesPage({super.key, required this.state});
   final AppState state;
 
+  Future<void> _confirmClearHistory(BuildContext context) async {
+    final scheme = Theme.of(context).colorScheme;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete outage history?'),
+        content: const Text(
+          'This permanently deletes all saved outage records. '
+          'An outage currently in progress will remain visible.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: scheme.error,
+              foregroundColor: scheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+    final deleted = await state.clearOutageHistory();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          deleted
+              ? 'Outage history deleted.'
+              : state.error ?? 'Outage history could not be deleted.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final incidents = state.outages;
@@ -369,6 +410,17 @@ class OutagesPage extends StatelessWidget {
                 onPressed:
                     state.outagesLoading ? null : () => state.refreshOutages(),
                 icon: const Icon(Icons.refresh),
+              ),
+              IconButton.filledTonal(
+                key: const ValueKey<String>('delete-outage-history'),
+                tooltip: 'Delete outage history',
+                style: IconButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: state.outagesLoading
+                    ? null
+                    : () => _confirmClearHistory(context),
+                icon: const Icon(Icons.delete_outline_rounded),
               ),
             ],
           ),

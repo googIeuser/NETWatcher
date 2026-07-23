@@ -8,6 +8,8 @@
 - Changed the millisecond axis to readable rounded intervals.
 - Replaced the dashboard range dropdown with a filled History range field.
 - Removed the empty divider strip above the first Statistics target row.
+- Added a confirmed delete action for saved outage history while preserving active incidents.
+- Added a Recent events entry when monitoring is stopped.
 - Restored Windows startup, start-minimized and automatic monitoring controls.
 - Fixed Flutter widget-test timeouts and prevented tests from changing the Windows startup registry.
 - Consolidated push testing, Windows test packages and stable publication into one workflow.
