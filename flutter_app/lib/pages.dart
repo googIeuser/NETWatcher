@@ -386,12 +386,13 @@ class OutagesPage extends StatelessWidget {
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
-            final narrow = constraints.maxWidth < 420;
+            final narrow = constraints.maxWidth < 520;
             final range = SizedBox(
-              width: narrow ? constraints.maxWidth : 190,
+              width: narrow ? constraints.maxWidth : 270,
               child: DropdownButtonFormField<int>(
                 key: ValueKey<int>(state.outageRangeDays),
                 initialValue: state.outageRangeDays,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'History range'),
                 items: const [
                   DropdownMenuItem(value: 1, child: Text('Last 24 hours')),
@@ -1264,14 +1265,12 @@ class _PageHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.trailing,
-    this.trailingBreakpoint = 760,
   });
 
   final String eyebrow;
   final String title;
   final String subtitle;
   final Widget? trailing;
-  final double trailingBreakpoint;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1301,7 +1300,7 @@ class _PageHeader extends StatelessWidget {
             ],
           );
           if (trailing == null) return copy;
-          if (constraints.maxWidth < trailingBreakpoint) {
+          if (constraints.maxWidth < 760) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [copy, const SizedBox(height: 16), trailing!],
