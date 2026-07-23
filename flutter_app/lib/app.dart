@@ -352,33 +352,47 @@ class _SidebarDestinationState extends State<_SidebarDestination> {
                         : Colors.transparent,
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: widget.expanded
-                      ? MainAxisAlignment.start
-                      : MainAxisAlignment.center,
-                  children: [
-                    AnimatedScale(
-                      duration: NetWatcherMotion.fast,
-                      scale: hovered ? 1.08 : 1,
-                      child: Icon(widget.icon, color: foreground, size: 21),
-                    ),
-                    if (widget.expanded) ...[
-                      const SizedBox(width: 13),
-                      Expanded(
-                        child: Text(
-                          widget.label,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: foreground,
-                            fontWeight: widget.selected
-                                ? FontWeight.w800
-                                : FontWeight.w600,
+                child: widget.expanded
+                    ? Row(
+                        children: [
+                          AnimatedScale(
+                            duration: NetWatcherMotion.fast,
+                            scale: hovered ? 1.08 : 1,
+                            child: Icon(
+                              widget.icon,
+                              color: foreground,
+                              size: 21,
+                            ),
+                          ),
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Text(
+                              widget.label,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: foreground,
+                                fontWeight: widget.selected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Center(
+                        child: SizedBox.square(
+                          dimension: 24,
+                          child: AnimatedScale(
+                            duration: NetWatcherMotion.fast,
+                            scale: hovered ? 1.08 : 1,
+                            child: Icon(
+                              widget.icon,
+                              color: foreground,
+                              size: 21,
+                            ),
                           ),
                         ),
                       ),
-                    ],
-                  ],
-                ),
               ),
             ),
           ),
