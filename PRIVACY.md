@@ -1,4 +1,4 @@
- # Privacy
+# Privacy
 
 NetWatcher is designed to work locally.
 
