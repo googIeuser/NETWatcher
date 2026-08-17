@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.5 - 2026-08-17
+
+- Optimized `NetWatcher` Rust core to reuse `reqwest::blocking::Client` with `Arc`.
+- Improved history log date filtering efficiency by skipping date parsing.
+
 ## 4.0.4 - 2026-07-23
 
 - Restored real per-target latency history from local measurement logs.
