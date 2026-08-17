@@ -11,14 +11,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-// ─── Optimizasyon #1: Paylaşımlı HTTP client ─────────────────────────────────
-// reqwest::blocking::Client içinde bir bağlantı havuzu (connection pool)
-// bulunur. Önceki kodda check_http() her çağrıldığında yeni bir Client
-// yaratılıyor ve bu havuz sıfırlanıyordu; gereksiz TCP handshake ve TLS
-// müzakere maliyetleri yaşanıyordu. Client artık Engine'de bir kez
-// oluşturuluyor ve her ölçümde yeniden kullanılıyor.
-// ─────────────────────────────────────────────────────────────────────────────
-
 use chrono::{DateTime, Utc};
 
 use crate::{
@@ -52,8 +44,6 @@ pub struct Engine {
     worker: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
     runtime: Arc<Mutex<RuntimeState>>,
     store: Store,
-    /// Paylaşımlı HTTP istemcisi — bağlantı havuzunu korur, her ölçümde
-    /// yeniden kullanılır. Arc ile clone maliyetsiz.
     http_client: Arc<reqwest::blocking::Client>,
 }
 
@@ -143,10 +133,6 @@ impl Engine {
             ..RuntimeState::default()
         };
 
-        // ─── Optimizasyon #1 (devam): Client bir kez oluşturuluyor ────────────
-        // Timeout, redirect politikası ve TLS konfigürasyonu sabit olduğundan
-        // bunları her ölçümde tekrar kurmaya gerek yok. Arc<Client> ile
-        // Engine clone'ları arasında sıfır maliyetle paylaşılıyor.
         let http_client = Arc::new(
             reqwest::blocking::Client::builder()
                 .timeout(Duration::from_millis(config.timeout_ms))
@@ -154,7 +140,6 @@ impl Engine {
                 .build()
                 .expect("failed to build HTTP client"),
         );
-        // ─────────────────────────────────────────────────────────────────────
 
         Self {
             config: Arc::new(RwLock::new(config)),
@@ -396,7 +381,6 @@ impl Engine {
 
     pub fn monitor_once(&self) -> Snapshot {
         let config = self.config();
-        // Paylaşımlı client'ı check_target'a ilet
         let client = Arc::clone(&self.http_client);
         let mut statuses: Vec<_> = targets::all_targets(&config.custom_targets)
             .into_iter()
@@ -405,17 +389,8 @@ impl Engine {
 
         {
             let mut runtime = self.runtime.lock().expect("runtime lock poisoned");
-
-            // ─── Optimizasyon #2: RFC3339 parse yerine string prefix karşılaştırması ─
-            // Önceki kodda her `retain` iterasyonunda `DateTime::parse_from_rfc3339`
-            // çağrılıyordu. RFC3339 formatı tarih-saat bilgisini UTF-8 string olarak
-            // sıralı biçimde içerdiğinden (YYYY-MM-DDTHH:MM:SS…), lexikografik
-            // karşılaştırma kronolojik karşılaştırmayla eşdeğerdir. Bu sayede
-            // her sample için pahalı parse işlemini atlıyor, yalnızca string
-            // karşılaştırması yapıyoruz.
             let history_cutoff = Utc::now() - chrono::Duration::hours(24);
             let cutoff_str = history_cutoff.to_rfc3339();
-            // ─────────────────────────────────────────────────────────────────────────
 
             for status in &mut statuses {
                 if status.state == "online" {
@@ -432,7 +407,6 @@ impl Engine {
                     .entry(status.target.id.clone())
                     .or_default();
                 target_history.extend(status.history.iter().cloned());
-                // String prefix karşılaştırması ile filtrele — parse maliyeti yok
                 target_history.retain(|sample| sample.time.as_str() >= cutoff_str.as_str());
                 if target_history.len() > 50_000 {
                     let remove = target_history.len() - 50_000;
@@ -510,11 +484,6 @@ impl Drop for Engine {
 }
 
 fn history_for_range(samples: &[Sample], range_minutes: u32) -> Vec<Sample> {
-    // ─── Optimizasyon #2 (devam): graph filtresi için de string karşılaştırması ─
-    // `history_for_range` her ölçüm döngüsünde her hedef için çağrılır.
-    // RFC3339 stringi tarih bilgisini sıralı tutar; lexikografik >= operatörü
-    // kronolojik >= ile eşdeğerdir. Tek seferlik `cutoff_str` üretimi yapılır,
-    // her sample için ayrı DateTime parse maliyeti ortadan kalkar.
     let cutoff = Utc::now() - chrono::Duration::minutes(range_minutes as i64);
     let cutoff_str = cutoff.to_rfc3339();
     let filtered: Vec<Sample> = samples
@@ -522,7 +491,6 @@ fn history_for_range(samples: &[Sample], range_minutes: u32) -> Vec<Sample> {
         .filter(|sample| sample.time.as_str() >= cutoff_str.as_str())
         .cloned()
         .collect();
-    // ─────────────────────────────────────────────────────────────────────────────
 
     const MAX_GRAPH_POINTS: usize = 600;
     if filtered.len() <= MAX_GRAPH_POINTS {
@@ -546,9 +514,6 @@ fn history_for_range(samples: &[Sample], range_minutes: u32) -> Vec<Sample> {
 fn check_target(
     target: Target,
     timeout_ms: u64,
-    // ─── Optimizasyon #1 (devam): paylaşımlı client parametresi ──────────────
-    // Client burada referans olarak alınır; her check_target çağrısı için
-    // yeni bir Client oluşturulmaz, mevcut havuz yeniden kullanılır.
     http_client: &reqwest::blocking::Client,
 ) -> TargetStatus {
     let checked_at = Utc::now().to_rfc3339();
@@ -582,7 +547,7 @@ fn check_target(
             message: error.to_string(),
             history: vec![Sample {
                 time: checked_at,
-                latency: 0.0,
+                latency,
                 success: false,
             }],
         },
@@ -604,15 +569,9 @@ fn resolve_address(host: &str) -> io::Result<SocketAddr> {
 
 fn check_http(
     url: &str,
-    // timeout_ms artık kullanılmıyor: Engine'deki paylaşımlı client zaten
-    // konfigürasyondaki timeout değeriyle oluşturuldu.
     _timeout_ms: u64,
     client: &reqwest::blocking::Client,
 ) -> anyhow::Result<f64> {
-    // ─── Optimizasyon #1 (devam): mevcut client'ı kullan ─────────────────────
-    // Client yeniden oluşturulmaz; TCP bağlantı havuzu ve TLS oturumu
-    // korunur. Bu, özellikle HTTPS hedeflerinde belirgin gecikme tasarrufu
-    // sağlar (TLS el sıkışması tekrarlanmaz).
     let started = Instant::now();
     let response = client.get(url).send()?;
     if !response.status().is_success() && !response.status().is_redirection() {
