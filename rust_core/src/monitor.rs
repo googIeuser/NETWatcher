@@ -547,7 +547,7 @@ fn check_target(
             message: error.to_string(),
             history: vec![Sample {
                 time: checked_at,
-                latency,
+                latency: 0.0,
                 success: false,
             }],
         },
