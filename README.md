@@ -4,25 +4,30 @@ NetWatcher is a lightweight Windows connection monitor and local diagnostics uti
 
 It continuously measures latency, jitter and packet loss, distinguishes local-network problems from wider internet failures, keeps local outage history and creates reports that can be shared with an ISP or regulator.
 
-**Current version:** `4.0.4`
+**Current version:** `4.0.5`
 
 [Download the latest release](../../releases/latest) · [Changelog](CHANGELOG.md) · [Privacy](PRIVACY.md)
 
 > NetWatcher works locally. It does not require an account and does not upload your measurements or log files.
 
-## Highlights in 4.0.4
+## Highlights in 4.0.5
 
-- Restored real per-target latency history from locally stored measurements
-- Restored 5-minute, 30-minute, 1-hour and 24-hour graph ranges
-- Added brighter graph series, thicker lines and latest-sample markers
-- Changed the latency axis to clear, rounded millisecond intervals
-- Added a confirmation-protected action for deleting saved outage history
-- Preserves an outage that is still active when saved history is cleared
-- Records both monitoring start and monitoring stop actions in Recent events
-- Restored start-with-Windows, start-minimized and automatic-monitoring controls
-- Improved responsive layouts for common Windows desktop sizes
+- Reuses a single shared `reqwest` HTTP client across checks in the Rust core instead of rebuilding one per measurement
+- Skips redundant date parsing when filtering history logs, so large log directories load faster
+- Fixed an out-of-scope `latency` value that broke compilation of the offline-check path in `rust_core`
 
-See [RELEASE_NOTES_4.0.4.md](RELEASE_NOTES_4.0.4.md) for the complete release summary.
+Carried over from 4.0.4:
+
+- Real per-target latency history from locally stored measurements
+- 5-minute, 30-minute, 1-hour and 24-hour graph ranges
+- Brighter graph series, thicker lines and latest-sample markers
+- A latency axis with clear, rounded millisecond intervals
+- A confirmation-protected action for deleting saved outage history, which preserves an outage that is still active
+- Monitoring start and stop actions recorded in Recent events
+- Start-with-Windows, start-minimized and automatic-monitoring controls
+- Responsive layouts for common Windows desktop sizes
+
+See [RELEASE_NOTES_4.0.5.md](RELEASE_NOTES_4.0.5.md) for the complete release summary.
 
 ## Features
 
@@ -125,7 +130,7 @@ Open the [latest release](../../releases/latest) and choose one of the Windows p
 ### Installer
 
 ```text
-NetWatcher_Setup_4.0.4.exe
+NetWatcher_Setup_4.0.5.exe
 ```
 
 The installer creates the normal Windows installation and uninstallation entries.
@@ -133,7 +138,7 @@ The installer creates the normal Windows installation and uninstallation entries
 ### Portable package
 
 ```text
-NetWatcher_4.0.4_Windows_Portable.zip
+NetWatcher_4.0.5_Windows_Portable.zip
 ```
 
 Extract the complete ZIP before running `netwatcher.exe`. The Flutter application and `netwatcher_core.exe` must remain together in the extracted folder.
@@ -145,8 +150,8 @@ Each installer and portable ZIP is published with a matching `.sha256` file.
 PowerShell example:
 
 ```powershell
-(Get-FileHash .\NetWatcher_Setup_4.0.4.exe -Algorithm SHA256).Hash.ToLower()
-Get-Content .\NetWatcher_Setup_4.0.4.exe.sha256
+(Get-FileHash .\NetWatcher_Setup_4.0.5.exe -Algorithm SHA256).Hash.ToLower()
+Get-Content .\NetWatcher_Setup_4.0.5.exe.sha256
 ```
 
 The two hash values should match.
@@ -205,7 +210,7 @@ From the repository root:
 ### Build installer and portable assets
 
 ```powershell
-.\scripts\build-stable-release.ps1 -Version "4.0.4"
+.\scripts\build-stable-release.ps1 -Version "4.0.5"
 ```
 
 Generated files are written to:
@@ -217,10 +222,10 @@ dist\
 Expected release assets:
 
 ```text
-NetWatcher_Setup_4.0.4.exe
-NetWatcher_Setup_4.0.4.exe.sha256
-NetWatcher_4.0.4_Windows_Portable.zip
-NetWatcher_4.0.4_Windows_Portable.zip.sha256
+NetWatcher_Setup_4.0.5.exe
+NetWatcher_Setup_4.0.5.exe.sha256
+NetWatcher_4.0.5_Windows_Portable.zip
+NetWatcher_4.0.5_Windows_Portable.zip.sha256
 ```
 
 ## Contributing and security
