@@ -2,8 +2,9 @@
 
 ## 4.0.5 - 2026-08-17
 
-- Optimized `NetWatcher` Rust core to reuse `reqwest::blocking::Client` with `Arc`.
-- Improved history log date filtering efficiency by skipping date parsing.
+- Fixed an out-of-scope `latency` value that broke compilation of the offline-check path in `rust_core`.
+- Optimized the Rust core to reuse a shared `reqwest::blocking::Client` through `Arc` instead of building one per check.
+- Improved history log date filtering by skipping redundant date parsing.
 
 ## 4.0.4 - 2026-07-23
 
@@ -18,6 +19,42 @@
 - Restored Windows startup, start-minimized and automatic monitoring controls.
 - Fixed Flutter widget-test timeouts and prevented tests from changing the Windows startup registry.
 - Consolidated push testing, Windows test packages and stable publication into one workflow.
+
+## 4.0.3 - 2026-07-22
+
+- Kept the executable name as `netwatcher.exe` and the product name as NetWatcher.
+- Forced the Windows runner resource to use the NetWatcher icon.
+- Rebuilt Windows resources without the stale Flutter icon cache.
+- Recreated desktop and Start Menu shortcuts with a dedicated NetWatcher shortcut icon.
+- Preserved tray mode, detailed outage history and report exports.
+
+## 4.0.2 - 2026-07-22
+
+- Replaced the Flutter default Windows icon with the NetWatcher icon.
+- Forced Windows resource cache invalidation before local and stable builds.
+- Verified the source and runner icon with SHA-256 before compilation.
+- Restored close-to-tray behavior and the tray context menu.
+- Showed detailed outage history instead of only a total record count.
+
+## 4.0.1 - 2026-07-22
+
+- Replaced the default Flutter icon with the NetWatcher icon for the executable, taskbar, shortcuts, installer and system tray.
+- Restored close-to-tray behavior when NetWatcher is set to keep running in the notification area.
+- Added a tray menu with Open NetWatcher, Start/Stop monitoring and Exit actions.
+- Restored the application window from a left-click on the tray icon.
+- Kept the Rust monitoring core running while the window is hidden in the notification area.
+- Replaced the single outage-count message with a detailed incident history.
+
+## 4.0.0 - 2026-07-22
+
+- Rewrote NetWatcher as a Windows desktop application with a Flutter interface and a Rust monitoring core.
+- Added a responsive dashboard for narrow and wide Windows layouts with light and dark themes.
+- Added ping, TCP, HTTP and HTTPS target monitoring.
+- Added latency, packet loss, jitter and quality measurements.
+- Added measurement logging, outage history and standard HTML reports.
+- Added 1, 7 and 30-day ISP Evidence Reports with print and save-to-PDF support.
+- Added Diagnostics ZIP exports containing summaries and raw CSV records.
+- Preserved existing NetWatcher settings and log directory compatibility.
 
 ## 3.0.0 - 2026-07-21
 
@@ -46,7 +83,7 @@
 - Increased button widths so labels remain fully visible.
 - Improved Settings card/background consistency.
 
-## [2.2.4] - 2026-07-21
+## 2.2.4 - 2026-07-21
 
 - Fixed clipped and overlapping controls in the main dashboard.
 - Widened the report and history action columns for DPI-scaled displays.
