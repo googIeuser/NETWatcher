@@ -1,0 +1,57 @@
+name: Author Guard
+
+# Fails the build if any commit lands with an author other than the repository
+# owner. Guards against bot-authored commits (Dependabot, Actions, etc.) ever
+# appearing in the contributor list again.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify commit authorship
+        env:
+          ALLOWED_AUTHOR: 116491538+googIeuser@users.noreply.github.com
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT" = "pull_request" ]; then
+            range="origin/$BASE_REF..HEAD"
+          elif [ -n "${BEFORE:-}" ] \
+            && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            range="$BEFORE..HEAD"
+          else
+            range="HEAD"
+          fi
+
+          echo "Checking range: $range"
+
+          # Committer may be the owner or GitHub's web-UI identity; the author
+          # must always be the owner, since that is what GitHub counts as a
+          # contribution.
+          bad=$(git log --format='%H%x09%ae%x09%ce' $range \
+            | awk -F'\t' -v a="$ALLOWED_AUTHOR" \
+                '$2 != a || ($3 != a && $3 != "noreply@github.com")') || true
+
+          if [ -n "$bad" ]; then
+            echo "::error::Commits with a disallowed author or committer:"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
+
+          echo "All commits authored by the repository owner."
