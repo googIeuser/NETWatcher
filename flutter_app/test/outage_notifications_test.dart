@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:netwatcher/app_state.dart';
-import 'package:netwatcher/mock_core_service.dart';
+import 'support/mock_core_service.dart';
 import 'package:netwatcher/models.dart';
 
 class EventCoreService extends MockCoreService {

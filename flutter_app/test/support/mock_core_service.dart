@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'core_service.dart';
-import 'models.dart';
+import 'package:netwatcher/core_service.dart';
+import 'package:netwatcher/models.dart';
 
 class MockCoreService implements CoreService {
   final Random _random = Random(7);

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:netwatcher/app.dart';
 import 'package:netwatcher/app_state.dart';
-import 'package:netwatcher/mock_core_service.dart';
+import 'support/mock_core_service.dart';
 import 'package:netwatcher/widgets.dart';
 
 void main() {
