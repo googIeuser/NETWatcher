@@ -17,7 +17,7 @@ on:
       version:
         description: "Version without the v prefix"
         required: true
-        default: "4.0.5"
+        default: "4.0.6"
 
 permissions:
   contents: read
@@ -156,6 +156,14 @@ jobs:
             }
           }
 
+          foreach ($asset in @($required[0], $required[2])) {
+            $expected = (Get-Content "$asset.sha256" -Raw).Trim().Split(' ')[0]
+            $actual = (Get-FileHash $asset -Algorithm SHA256).Hash
+            if ($expected -ine $actual) {
+              throw "Checksum verification failed: $asset"
+            }
+          }
+
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
         with:
@@ -170,9 +178,6 @@ jobs:
       - name: Create or verify stable tag
         if: inputs.mode == 'stable-release'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           $tag = "${env:RELEASE_TAG}"
           $tagLine = git ls-remote --exit-code --tags origin "refs/tags/$tag" 2>$null
           $lookupExit = $LASTEXITCODE
@@ -191,15 +196,7 @@ jobs:
 
             Write-Host "Tag $tag already points to this workflow commit."
           } elseif ($lookupExit -eq 2) {
-            git tag -a "$tag" "${env:GITHUB_SHA}" -m "NetWatcher ${env:RELEASE_VERSION}"
-            if ($LASTEXITCODE -ne 0) {
-              throw "Stable tag creation failed."
-            }
-
-            git push origin "refs/tags/$tag"
-            if ($LASTEXITCODE -ne 0) {
-              throw "Stable tag push failed."
-            }
+            throw "Tag $tag must be created by the release maintainer before publication."
           } else {
             throw "Could not check whether tag $tag exists."
           }
@@ -240,20 +237,13 @@ jobs:
               --repo "${env:GITHUB_REPOSITORY}" `
               --title "NetWatcher ${env:RELEASE_VERSION}" `
               --notes-file "${env:RELEASE_NOTES}" `
+              --draft=false `
+              --prerelease=false `
               --latest
 
             if ($LASTEXITCODE -ne 0) {
               throw "Existing stable release update failed."
             }
           } else {
-            gh release create "${env:RELEASE_TAG}" @assets `
-              --repo "${env:GITHUB_REPOSITORY}" `
-              --verify-tag `
-              --title "NetWatcher ${env:RELEASE_VERSION}" `
-              --notes-file "${env:RELEASE_NOTES}" `
-              --latest
-
-            if ($LASTEXITCODE -ne 0) {
-              throw "GitHub stable release publication failed."
-            }
+            throw "Draft release ${env:RELEASE_TAG} must be created by the release maintainer before publication."
           }

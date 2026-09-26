@@ -4,13 +4,15 @@ NetWatcher is a lightweight Windows connection monitor and local diagnostics uti
 
 It continuously measures latency, jitter and packet loss, distinguishes local-network problems from wider internet failures, keeps local outage history and creates reports that can be shared with an ISP or regulator.
 
-**Current version:** `4.0.5`
+**Current version:** `4.0.6`
 
 [Download the latest release](../../releases/latest) · [Changelog](CHANGELOG.md) · [Privacy](PRIVACY.md)
 
 > NetWatcher works locally. It does not require an account and does not upload your measurements or log files.
 
 ## Highlights
+
+Version 4.0.6 reduces the work needed to load recent measurement history and includes reliability fixes for active outages, HTTP checks, notifications and core connection errors. See [RELEASE_NOTES_4.0.6.md](RELEASE_NOTES_4.0.6.md) for details.
 
 Version 4.0.5 fixes a Rust core compilation error. See [RELEASE_NOTES_4.0.5.md](RELEASE_NOTES_4.0.5.md) for its release summary.
 
@@ -130,7 +132,7 @@ Open the [latest release](../../releases/latest) and choose one of the Windows p
 ### Installer
 
 ```text
-NetWatcher_Setup_4.0.5.exe
+NetWatcher_Setup_4.0.6.exe
 ```
 
 The installer creates the normal Windows installation and uninstallation entries.
@@ -138,7 +140,7 @@ The installer creates the normal Windows installation and uninstallation entries
 ### Portable package
 
 ```text
-NetWatcher_4.0.5_Windows_Portable.zip
+NetWatcher_4.0.6_Windows_Portable.zip
 ```
 
 Extract the complete ZIP before running `netwatcher.exe`. The Flutter application and `netwatcher_core.exe` must remain together in the extracted folder.
@@ -150,8 +152,8 @@ Each installer and portable ZIP is published with a matching `.sha256` file.
 PowerShell example:
 
 ```powershell
-(Get-FileHash .\NetWatcher_Setup_4.0.5.exe -Algorithm SHA256).Hash.ToLower()
-Get-Content .\NetWatcher_Setup_4.0.5.exe.sha256
+(Get-FileHash .\NetWatcher_Setup_4.0.6.exe -Algorithm SHA256).Hash.ToLower()
+Get-Content .\NetWatcher_Setup_4.0.6.exe.sha256
 ```
 
 The two hash values should match.
@@ -210,7 +212,7 @@ From the repository root:
 ### Build installer and portable assets
 
 ```powershell
-.\scripts\build-stable-release.ps1 -Version "4.0.5"
+.\scripts\build-stable-release.ps1 -Version "4.0.6"
 ```
 
 Generated files are written to:
@@ -222,10 +224,10 @@ dist\
 Expected release assets:
 
 ```text
-NetWatcher_Setup_4.0.5.exe
-NetWatcher_Setup_4.0.5.exe.sha256
-NetWatcher_4.0.5_Windows_Portable.zip
-NetWatcher_4.0.5_Windows_Portable.zip.sha256
+NetWatcher_Setup_4.0.6.exe
+NetWatcher_Setup_4.0.6.exe.sha256
+NetWatcher_4.0.6_Windows_Portable.zip
+NetWatcher_4.0.6_Windows_Portable.zip.sha256
 ```
 
 ## Contributing and security

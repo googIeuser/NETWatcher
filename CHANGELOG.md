@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.6 - 2026-09-26
+
+- Read only CSV headers when detecting delimiters and skip expired daily measurement files while loading recent history.
+- Preserve active outages across restarts and complete them correctly when monitoring stops or connectivity returns.
+- Apply updated HTTP timeouts to subsequent checks.
+- Show core connection failures instead of silently falling back to sample data.
+- Restore outage and recovery notifications.
+
 ## 4.0.5 - 2026-08-17
 
 - Optimized `NetWatcher` Rust core to reuse `reqwest::blocking::Client` with `Arc`.

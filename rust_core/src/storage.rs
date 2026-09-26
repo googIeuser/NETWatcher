@@ -2,12 +2,13 @@ use std::{
     collections::{HashMap, HashSet},
     env,
     fs::{self, OpenOptions},
+    io::{BufRead, BufReader},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
 
 use crate::models::{Event, Measurement, Outage};
@@ -160,11 +161,18 @@ impl Store {
     }
 
     fn delimiter(path: &Path) -> u8 {
-        fs::read_to_string(path)
-            .ok()
-            .and_then(|data| data.lines().next().map(str::to_owned))
-            .map(|line| if line.matches(';').count() > line.matches(',').count() { b';' } else { b',' })
-            .unwrap_or(b',')
+        let Ok(file) = fs::File::open(path) else {
+            return b',';
+        };
+        let mut header = String::new();
+        if BufReader::new(file).read_line(&mut header).is_err() {
+            return b',';
+        }
+        if header.matches(';').count() > header.matches(',').count() {
+            b';'
+        } else {
+            b','
+        }
     }
 
     fn rows(path: &Path) -> Result<(HashMap<String, usize>, Vec<StringRecord>)> {
@@ -228,6 +236,7 @@ impl Store {
             return Ok(Vec::new());
         }
         let mut output = Vec::new();
+        let since_day = since.date_naive();
         for entry in fs::read_dir(&self.dir)? {
             let entry = entry?;
             if !entry.file_type()?.is_file() {
@@ -238,6 +247,14 @@ impl Store {
                 || !(name.starts_with("measurements_") || name.starts_with("samples_"))
             {
                 continue;
+            }
+            if let Some(day) = name
+                .strip_prefix("measurements_")
+                .and_then(|value| value.strip_suffix(".csv"))
+            {
+                if NaiveDate::parse_from_str(day, "%Y-%m-%d").is_ok_and(|date| date < since_day) {
+                    continue;
+                }
             }
             let path = entry.path();
             let (indexes, rows) = Self::rows(&path)
@@ -402,6 +419,7 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::Store;
+    use chrono::{Duration, Utc};
     use std::{
         env, fs,
         time::{SystemTime, UNIX_EPOCH},
@@ -430,5 +448,47 @@ mod tests {
             assert!(!dir.join(name).exists(), "{name} should be deleted");
         }
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn delimiter_reads_only_the_csv_header() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = env::temp_dir().join(format!("netwatcher-delimiter-{unique}.csv"));
+        fs::write(&path, b"start;end;category\n\xff").unwrap();
+
+        let delimiter = Store::delimiter(&path);
+        let _ = fs::remove_file(path);
+
+        assert_eq!(delimiter, b';');
+    }
+
+    #[test]
+    fn read_measurements_skips_expired_daily_files() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = env::temp_dir().join(format!("netwatcher-old-measurements-{unique}"));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("measurements_2000-01-01.csv"), b"\xff").unwrap();
+        let now = Utc::now();
+        fs::write(
+            dir.join(format!("measurements_{}.csv", now.format("%Y-%m-%d"))),
+            format!(
+                "timestamp,target_id,target_name,host,kind,mode,success,latency_ms,message\n{},current,Current,1.1.1.1,internet,ping,true,12.5,OK\n",
+                now.to_rfc3339()
+            ),
+        )
+        .unwrap();
+
+        let result = Store::new_at(dir.clone()).read_measurements(now - Duration::hours(24));
+        let _ = fs::remove_dir_all(dir);
+
+        let measurements = result.unwrap();
+        assert_eq!(measurements.len(), 1);
+        assert_eq!(measurements[0].target_id, "current");
     }
 }
