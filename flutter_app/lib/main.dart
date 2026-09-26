@@ -1,15 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:local_notifier/local_notifier.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'app_state.dart';
 import 'desktop_tray.dart';
+import 'models.dart';
 
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 
-  final state = await AppState.create();
+  Future<void> Function(NetworkEvent)? onOutageEvent;
+  try {
+    await localNotifier.setup(
+      appName: 'NetWatcher',
+      shortcutPolicy: ShortcutPolicy.requireCreate,
+    );
+    onOutageEvent = (event) => LocalNotification(
+          title: event.category == 'recovery'
+              ? 'Connection recovered'
+              : 'Connection problem',
+          body: event.message,
+        ).show();
+  } catch (exception) {
+    debugPrint('Windows notifications are unavailable: $exception');
+  }
+
+  final state = await AppState.create(onOutageEvent: onOutageEvent);
 
   const windowOptions = WindowOptions(
     size: Size(1260, 760),

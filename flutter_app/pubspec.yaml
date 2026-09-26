@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  local_notifier: ^0.1.6
   tray_manager: ^0.5.3
   window_manager: ^0.5.2
 

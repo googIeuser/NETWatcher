@@ -3,22 +3,30 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'core_service.dart';
-import 'mock_core_service.dart';
 import 'models.dart';
 import 'process_core_service.dart';
 import 'windows_startup.dart';
 
 class AppState extends ChangeNotifier {
   AppState._(
-    this._service, {
+    this._resolvedService, {
     required bool pollSnapshots,
     required bool manageWindowsStartup,
+    Future<void> Function(NetworkEvent)? onOutageEvent,
+    String? startupFailure,
   })  : _pollSnapshots = pollSnapshots,
-        _manageWindowsStartup = manageWindowsStartup;
+        _manageWindowsStartup = manageWindowsStartup,
+        _onOutageEvent = onOutageEvent,
+        _startupFailure = startupFailure;
 
-  final CoreService _service;
+  final CoreService? _resolvedService;
+  final String? _startupFailure;
+  CoreService get _service =>
+      _resolvedService ??
+      (throw StateError(_startupFailure ?? 'NetWatcher core is unavailable.'));
   final bool _pollSnapshots;
   final bool _manageWindowsStartup;
+  final Future<void> Function(NetworkEvent)? _onOutageEvent;
   Timer? _pollTimer;
   NetWatcherConfig config = const NetWatcherConfig();
   NetworkSnapshot snapshot = const NetworkSnapshot();
@@ -37,16 +45,20 @@ class AppState extends ChangeNotifier {
     CoreService? service,
     bool pollSnapshots = true,
     bool manageWindowsStartup = true,
+    Future<void> Function(NetworkEvent)? onOutageEvent,
   }) async {
-    CoreService resolvedService;
-    if (service != null) {
-      resolvedService = service;
-    } else {
+    CoreService? resolvedService = service;
+    String? startupFailure;
+    if (resolvedService == null) {
       try {
-        resolvedService =
-            await ProcessCoreService.tryCreate() ?? MockCoreService();
-      } catch (_) {
-        resolvedService = MockCoreService();
+        resolvedService = await ProcessCoreService.tryCreate();
+        if (resolvedService == null) {
+          startupFailure = 'netwatcher_core.exe was not found. '
+              'Monitoring is unavailable; reinstall NetWatcher.';
+        }
+      } catch (exception) {
+        startupFailure = 'netwatcher_core.exe could not start: $exception. '
+            'Monitoring is unavailable.';
       }
     }
 
@@ -54,7 +66,14 @@ class AppState extends ChangeNotifier {
       resolvedService,
       pollSnapshots: pollSnapshots,
       manageWindowsStartup: manageWindowsStartup,
+      onOutageEvent: onOutageEvent,
+      startupFailure: startupFailure,
     );
+    if (startupFailure != null) {
+      state.error = startupFailure;
+      state.loading = false;
+      return state;
+    }
     await state._initialise();
     return state;
   }
@@ -75,7 +94,9 @@ class AppState extends ChangeNotifier {
 
       snapshot = await _service.snapshot();
       if (config.startMonitoringAutomatically && !snapshot.monitoring) {
+        final previousEvents = snapshot.recentEvents;
         snapshot = await _service.startMonitoring();
+        await _notifyNewEvents(previousEvents);
       }
       outages = await _service.getOutages(outageRangeDays);
       if (_pollSnapshots) {
@@ -96,7 +117,9 @@ class AppState extends ChangeNotifier {
   Future<void> refreshSnapshot() async {
     if (_shuttingDown) return;
     try {
+      final previousEvents = snapshot.recentEvents;
       snapshot = await _service.snapshot();
+      await _notifyNewEvents(previousEvents);
       _outagePollTicks++;
       if (_outagePollTicks >= 5) {
         _outagePollTicks = 0;
@@ -107,6 +130,23 @@ class AppState extends ChangeNotifier {
     } catch (exception) {
       error = exception.toString();
       notifyListeners();
+    }
+  }
+
+  Future<void> _notifyNewEvents(List<NetworkEvent> previousEvents) async {
+    if (!config.showOutageNotifications || _onOutageEvent == null) return;
+    final known = previousEvents
+        .map((event) => '${event.time}|${event.category}|${event.message}')
+        .toSet();
+    for (final event in snapshot.recentEvents.reversed) {
+      if (event.category != 'outage' && event.category != 'recovery') continue;
+      final key = '${event.time}|${event.category}|${event.message}';
+      if (known.contains(key)) continue;
+      try {
+        await _onOutageEvent(event);
+      } catch (_) {
+        // A notification failure must not interrupt monitoring.
+      }
     }
   }
 
@@ -142,7 +182,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       outages = await _service.clearOutageHistory(outageRangeDays);
+      final previousEvents = snapshot.recentEvents;
       snapshot = await _service.snapshot();
+      await _notifyNewEvents(previousEvents);
       return true;
     } catch (exception) {
       error = exception.toString();
@@ -155,9 +197,11 @@ class AppState extends ChangeNotifier {
 
   Future<void> toggleMonitoring() async {
     try {
+      final previousEvents = snapshot.recentEvents;
       snapshot = snapshot.monitoring
           ? await _service.stopMonitoring()
           : await _service.startMonitoring();
+      await _notifyNewEvents(previousEvents);
       error = null;
     } catch (exception) {
       error = exception.toString();
@@ -167,8 +211,10 @@ class AppState extends ChangeNotifier {
 
   Future<void> saveConfig(NetWatcherConfig value) async {
     try {
+      final previousEvents = snapshot.recentEvents;
       config = await _service.saveSettings(value);
       snapshot = await _service.snapshot();
+      await _notifyNewEvents(previousEvents);
       if (_manageWindowsStartup) {
         await WindowsStartup.sync(config.startWithWindows);
       }
@@ -266,7 +312,7 @@ class AppState extends ChangeNotifier {
     if (_shuttingDown) return;
     _shuttingDown = true;
     _pollTimer?.cancel();
-    await _service.dispose();
+    await _resolvedService?.dispose();
   }
 
   @override

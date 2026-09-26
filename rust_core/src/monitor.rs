@@ -50,10 +50,23 @@ pub struct Engine {
 impl Engine {
     pub fn new(config: Config) -> Self {
         let store = Store::new();
-        let outage_count = store
+        let completed_outages = store
             .read_outages(Utc::now() - chrono::Duration::days(36_500))
-            .map(|items| items.len() as u64)
-            .unwrap_or(0);
+            .unwrap_or_default();
+        let outage_count = completed_outages.len() as u64;
+        let active_outage = store.read_active_outage().ok().flatten().and_then(|saved| {
+            if completed_outages.iter().any(|item| item.start == saved.start) {
+                let _ = store.clear_active_outage();
+                return None;
+            }
+            DateTime::parse_from_rfc3339(&saved.start)
+                .ok()
+                .map(|start| ActiveOutage {
+                    start: start.with_timezone(&Utc),
+                    category: saved.category,
+                    details: saved.details,
+                })
+        });
 
         let mut history: HashMap<String, Vec<Sample>> = HashMap::new();
         let mut latest: HashMap<String, Measurement> = HashMap::new();
@@ -130,6 +143,11 @@ impl Engine {
         let runtime = RuntimeState {
             previous_latency: previous_latencies,
             history,
+            confirmed_state: active_outage
+                .as_ref()
+                .map(|outage| outage.category.clone())
+                .unwrap_or_default(),
+            active_outage,
             ..RuntimeState::default()
         };
 
@@ -265,6 +283,29 @@ impl Engine {
         if let Some(handle) = self.worker.lock().expect("worker lock poisoned").take() {
             let _ = handle.join();
         }
+        let active = {
+            let mut runtime = self.runtime.lock().expect("runtime lock poisoned");
+            runtime.confirmed_state.clear();
+            runtime.pending_state.clear();
+            runtime.pending_count = 0;
+            runtime.active_outage.take()
+        };
+        if let Some(active) = active {
+            let now = Utc::now();
+            let outage = Outage {
+                start: active.start.to_rfc3339(),
+                end: now.to_rfc3339(),
+                category: active.category,
+                details: active.details,
+                duration_seconds: (now - active.start).num_milliseconds() as f64 / 1000.0,
+                active: false,
+            };
+            if self.store.append_outage(&outage).is_ok() {
+                let _ = self.store.clear_active_outage();
+                let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
+                snapshot.outages += 1;
+            }
+        }
         {
             let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
             snapshot.monitoring = false;
@@ -313,13 +354,24 @@ impl Engine {
         if runtime.confirmed_state.is_empty() {
             runtime.confirmed_state = candidate.into();
             if candidate != "online" {
-                runtime.active_outage = Some(ActiveOutage {
+                let active = ActiveOutage {
                     start: Utc::now(),
                     category: candidate.into(),
                     details: details.into(),
-                });
+                };
+                self.persist_active_outage(&active);
+                runtime.active_outage = Some(active);
             }
-            return runtime.confirmed_state.clone();
+            let confirmed = runtime.confirmed_state.clone();
+            drop(runtime);
+            if candidate != "online" {
+                self.push_event(
+                    "warning",
+                    "outage",
+                    format!("Connection state changed to {candidate}: {details}"),
+                );
+            }
+            return confirmed;
         }
         if candidate == runtime.confirmed_state {
             runtime.pending_state.clear();
@@ -349,17 +401,20 @@ impl Engine {
                     active: false,
                 };
                 if self.store.append_outage(&outage).is_ok() {
+                    let _ = self.store.clear_active_outage();
                     let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
                     snapshot.outages += 1;
                 }
             }
         }
         if candidate != "online" {
-            runtime.active_outage = Some(ActiveOutage {
+            let active = ActiveOutage {
                 start: now,
                 category: candidate.into(),
                 details: details.into(),
-            });
+            };
+            self.persist_active_outage(&active);
+            runtime.active_outage = Some(active);
         }
         runtime.confirmed_state = candidate.into();
         runtime.pending_state.clear();
@@ -377,6 +432,17 @@ impl Engine {
             message,
         );
         candidate.into()
+    }
+
+    fn persist_active_outage(&self, active: &ActiveOutage) {
+        let _ = self.store.write_active_outage(&Outage {
+            start: active.start.to_rfc3339(),
+            end: String::new(),
+            category: active.category.clone(),
+            details: active.details.clone(),
+            duration_seconds: 0.0,
+            active: true,
+        });
     }
 
     pub fn monitor_once(&self) -> Snapshot {
@@ -569,11 +635,14 @@ fn resolve_address(host: &str) -> io::Result<SocketAddr> {
 
 fn check_http(
     url: &str,
-    _timeout_ms: u64,
+    timeout_ms: u64,
     client: &reqwest::blocking::Client,
 ) -> anyhow::Result<f64> {
     let started = Instant::now();
-    let response = client.get(url).send()?;
+    let response = client
+        .get(url)
+        .timeout(Duration::from_millis(timeout_ms))
+        .send()?;
     if !response.status().is_success() && !response.status().is_redirection() {
         anyhow::bail!("HTTP {}", response.status());
     }
@@ -596,4 +665,142 @@ fn check_ping(host: &str, timeout_ms: u64) -> io::Result<f64> {
         return Err(io::Error::new(io::ErrorKind::TimedOut, "ping failed"));
     }
     Ok(started.elapsed().as_secs_f64() * 1000.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        env, fs,
+        io::{Read, Write},
+        net::TcpListener,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use super::*;
+
+    fn slow_http_server(delay: Duration) -> (String, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut connection, _) = listener.accept().unwrap();
+            let mut request = [0; 4096];
+            connection.read(&mut request).unwrap();
+            thread::sleep(delay);
+            let _ = connection.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            );
+        });
+        (format!("http://{address}/"), server)
+    }
+
+    #[test]
+    fn http_check_uses_shorter_updated_timeout() {
+        let (url, server) = slow_http_server(Duration::from_millis(350));
+        let client = reqwest::blocking::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+        let result = check_http(&url, 100, &client);
+        server.join().unwrap();
+
+        assert!(result.is_err(), "HTTP check ignored the updated timeout");
+    }
+
+    #[test]
+    fn http_check_uses_longer_updated_timeout() {
+        let (url, server) = slow_http_server(Duration::from_millis(350));
+        let client = reqwest::blocking::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .unwrap();
+        let result = check_http(&url, 700, &client);
+        server.join().unwrap();
+
+        assert!(result.is_ok(), "HTTP check kept the original client timeout: {result:?}");
+    }
+
+    #[test]
+    fn active_outage_is_saved_when_it_starts() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = env::temp_dir().join(format!("netwatcher-active-outage-{}-{unique}", std::process::id()));
+        let mut engine = Engine::new(Config::default());
+        engine.store = Store::new_at(dir.clone());
+
+        engine.transition_state("offline", "test outage", 1);
+
+        let active = dir.join("active_outage.json");
+        let saved = fs::read_to_string(&active);
+        let _ = fs::remove_dir_all(dir);
+        assert!(saved.is_ok(), "active outage was not persisted");
+        let saved: Outage = serde_json::from_str(&saved.unwrap()).unwrap();
+        assert_eq!(saved.category, "offline");
+        assert!(saved.active);
+        assert_eq!(engine.snapshot().recent_events[0].category, "outage");
+    }
+
+    #[test]
+    fn recovery_completes_the_saved_active_outage() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = env::temp_dir().join(format!("netwatcher-recovery-{}-{unique}", std::process::id()));
+        let mut engine = Engine::new(Config::default());
+        engine.store = Store::new_at(dir.clone());
+
+        engine.transition_state("offline", "test outage", 1);
+        let saved: Outage = serde_json::from_slice(&fs::read(dir.join("active_outage.json")).unwrap()).unwrap();
+        engine.transition_state("online", "recovered", 1);
+
+        let active_exists = dir.join("active_outage.json").exists();
+        let completed = engine.store.read_outages(Utc::now() - chrono::Duration::days(1)).unwrap();
+        let _ = fs::remove_dir_all(dir);
+        assert!(!active_exists);
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].start, saved.start);
+        assert!(!completed[0].active);
+    }
+
+    #[test]
+    fn changed_outage_category_replaces_the_active_record() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = env::temp_dir().join(format!("netwatcher-category-{unique}"));
+        let mut engine = Engine::new(Config::default());
+        engine.store = Store::new_at(dir.clone());
+
+        engine.transition_state("offline", "initial failure", 1);
+        engine.transition_state("local", "gateway failure", 1);
+
+        let saved: Outage =
+            serde_json::from_slice(&fs::read(dir.join("active_outage.json")).unwrap()).unwrap();
+        let completed = engine
+            .store
+            .read_outages(Utc::now() - chrono::Duration::days(1))
+            .unwrap();
+        let _ = fs::remove_dir_all(dir);
+        assert_eq!(saved.category, "local");
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].category, "offline");
+    }
+
+    #[test]
+    fn stopping_monitoring_finishes_the_active_outage() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = env::temp_dir().join(format!("netwatcher-stop-{unique}"));
+        let mut engine = Engine::new(Config::default());
+        engine.store = Store::new_at(dir.clone());
+
+        engine.transition_state("offline", "connection lost", 1);
+        engine.running.store(true, Ordering::SeqCst);
+        engine.stop();
+
+        let active_exists = dir.join("active_outage.json").exists();
+        let completed = engine
+            .store
+            .read_outages(Utc::now() - chrono::Duration::days(1))
+            .unwrap();
+        let _ = fs::remove_dir_all(dir);
+        assert!(!active_exists);
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].category, "offline");
+    }
 }

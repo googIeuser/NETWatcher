@@ -18,13 +18,6 @@
 Thumbs.db
 
 # Test output
-coverage.out
-*.test
-
-# Wails migration workspace
-next/frontend/node_modules/
-next/frontend/dist/
-next/build/bin/
 flutter_app/.dart_tool/
 flutter_app/build/
 flutter_app/.flutter-plugins

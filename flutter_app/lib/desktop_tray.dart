@@ -126,7 +126,9 @@ class DesktopTrayController with TrayListener {
     final autoStarted = arguments.any(
       (argument) => argument.toLowerCase() == '--autostart',
     );
-    if (autoStarted && state.config.startMinimizedToNotificationArea) {
+    if (autoStarted &&
+        state.error == null &&
+        state.config.startMinimizedToNotificationArea) {
       await hideToTray();
     } else {
       await showWindow();
