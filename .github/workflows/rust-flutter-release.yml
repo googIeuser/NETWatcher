@@ -17,7 +17,7 @@ on:
       version:
         description: "Version without the v prefix"
         required: true
-        default: "4.0.4"
+        default: "4.0.5"
 
 permissions:
   contents: read
@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout source
-uses: actions/checkout@v7
+        uses: actions/checkout@v7
 
       - name: Install Flutter stable
         run: |
@@ -79,7 +79,7 @@ uses: actions/checkout@v7
 
     steps:
       - name: Checkout source
-uses: actions/checkout@v7
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

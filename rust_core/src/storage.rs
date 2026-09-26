@@ -105,6 +105,35 @@ impl Store {
         )
     }
 
+    pub fn read_active_outage(&self) -> Result<Option<Outage>> {
+        let _guard = self.lock.lock().expect("storage lock poisoned");
+        let path = self.dir.join("active_outage.json");
+        if !path.exists() {
+            return Ok(None);
+        }
+        let outage: Outage = serde_json::from_slice(&fs::read(&path)?)?;
+        Ok(outage.active.then_some(outage))
+    }
+
+    pub fn write_active_outage(&self, outage: &Outage) -> Result<()> {
+        let _guard = self.lock.lock().expect("storage lock poisoned");
+        fs::create_dir_all(&self.dir)?;
+        let path = self.dir.join("active_outage.json");
+        let temp = self.dir.join("active_outage.json.tmp");
+        fs::write(&temp, serde_json::to_vec(outage)?)?;
+        fs::rename(temp, path)?;
+        Ok(())
+    }
+
+    pub fn clear_active_outage(&self) -> Result<()> {
+        let _guard = self.lock.lock().expect("storage lock poisoned");
+        let path = self.dir.join("active_outage.json");
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        Ok(())
+    }
+
     pub fn append_event(&self, event: &Event) -> Result<()> {
         self.append_csv(
             self.dir.join("events_v4.csv"),
