@@ -167,7 +167,14 @@ class RestoredDashboardPage extends StatelessWidget {
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
                       ),
-                      Badge(label: Text(snapshot.targets.length.toString())),
+                      Badge(
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: .14),
+                        textColor: Theme.of(context).colorScheme.primary,
+                        label: Text(snapshot.targets.length.toString()),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),

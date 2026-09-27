@@ -35,4 +35,23 @@ void main() {
       await pumpAt(tester, size);
     }
   });
+
+  testWidgets('targets form has no overflow at compact and desktop sizes',
+      (tester) async {
+    for (final size in const [Size(800, 600), Size(1246, 752)]) {
+      await tester.binding.setSurfaceSize(size);
+      final state = await AppState.create(
+        service: MockCoreService(),
+        pollSnapshots: false,
+        manageWindowsStartup: false,
+      );
+      await tester.pumpWidget(NetWatcherApp(state: state));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey<String>('nav-4')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      state.dispose();
+    }
+    await tester.binding.setSurfaceSize(null);
+  });
 }
