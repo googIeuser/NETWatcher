@@ -1,0 +1,132 @@
+:root {
+  color-scheme: light;
+  --bg: #f2f1e8;
+  --card: #fcfbf5;
+  --line: #cfd2c4;
+  --text: #172821;
+  --muted: #64736a;
+  --accent: #d9f46a;
+  --hero: #172821;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 Bahnschrift, "Segoe UI", sans-serif;
+}
+
+.wrap { max-width: 1160px; margin: auto; padding: 28px; }
+
+.hero {
+  padding: 30px;
+  background: var(--hero);
+  color: #f1f3e8;
+  border: 1px solid #41664b;
+  border-radius: 5px;
+}
+
+.hero::before {
+  content: "NETWATCHER  /  NETWORK CONTROL DESK";
+  display: block;
+  margin-bottom: 17px;
+  color: var(--accent);
+  font: 700 11px/1.4 Consolas, monospace;
+  letter-spacing: .14em;
+}
+
+.hero-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.hero h1 { margin: 0 0 6px; font-size: 34px; letter-spacing: -.03em; line-height: 1.15; }
+.hero p { margin: 0; color: #c6d3c4; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.metric {
+  min-height: 105px;
+  padding: 18px;
+  background: var(--card);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.metric span {
+  display: block;
+  color: var(--muted);
+  font: 700 11px/1.4 Consolas, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.metric strong { display: block; margin-top: 10px; font-size: 26px; line-height: 1.1; }
+
+.card {
+  margin-top: 15px;
+  padding: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: auto;
+}
+
+.card h2 { margin: 0 0 14px; font-size: 21px; letter-spacing: -.02em; }
+.table-wrap { overflow: auto; }
+table { width: 100%; min-width: 800px; border-collapse: collapse; }
+th, td { padding: 11px 13px; text-align: left; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font: 700 11px/1.3 Consolas, monospace; text-transform: uppercase; letter-spacing: .06em; }
+td:first-child { font-weight: 700; }
+
+.tag { display: inline-block; padding: 4px 8px; background: #e1e7dc; border-radius: 3px; }
+.tag.bad { background: #f3dcd6; color: #9f4338; }
+.tag.warn { background: #f3e8c8; color: #755a21; }
+.note { margin: 18px 4px; color: var(--muted); font-size: 12px; }
+
+.print-button {
+  flex: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 11px 15px;
+  background: var(--accent);
+  color: #172821;
+  font: 800 13px Bahnschrift, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .wrap { padding: 14px; }
+  .hero { padding: 22px; }
+  .hero-row { display: block; }
+  .hero h1 { font-size: 27px; }
+  .print-button { margin-top: 17px; }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #101a16;
+    --card: #1b2721;
+    --line: #35443b;
+    --text: #f1f3e8;
+    --muted: #adbbad;
+  }
+  .tag { background: #35483b; }
+  .tag.bad { background: #4b302c; color: #ffaaa0; }
+  .tag.warn { background: #4b432e; color: #f1d281; }
+}
+
+@media print {
+  :root { color-scheme: light; --bg: #fff; --card: #fff; --line: #aaa; --text: #111; --muted: #444; }
+  .wrap { max-width: none; padding: 0; }
+  .hero { background: #fff; color: #111; border-color: #111; }
+  .hero::before, .hero p { color: #333; }
+  .print-button { display: none; }
+  .metric, .card { break-inside: avoid; }
+}

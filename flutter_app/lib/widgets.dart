@@ -226,6 +226,13 @@ class LatencyChart extends StatelessWidget {
   final List<TargetStatus> targets;
   final int rangeMinutes;
 
+  String _legendValue(TargetStatus target) {
+    if (target.state == 'offline' || target.latency <= 0) {
+      return 'No response';
+    }
+    return '${target.latency.toStringAsFixed(1)} ms';
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleTargets = targets
@@ -322,7 +329,7 @@ class LatencyChart extends StatelessWidget {
                     const SizedBox(width: 7),
                     Text(
                       '${visibleTargets[index].target.name}: '
-                      '${visibleTargets[index].latency.toStringAsFixed(1)} ms',
+                      '${_legendValue(visibleTargets[index])}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: scheme.onSurface,
                             fontWeight: FontWeight.w600,
