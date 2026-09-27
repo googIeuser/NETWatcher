@@ -8,6 +8,30 @@ import 'package:netwatcher/widgets.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('dashboard does not present zeroes as measurements while idle',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1246, 752));
+    final state = await AppState.create(
+      service: MockCoreService(),
+      pollSnapshots: false,
+      manageWindowsStartup: false,
+    );
+
+    addTearDown(() async {
+      state.dispose();
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    await tester.pumpWidget(NetWatcherApp(state: state));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey<String>('dashboard-empty-state')),
+        findsOneWidget);
+    expect(find.text('0.0'), findsNothing);
+    expect(find.text('QUALITY'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('dashboard exposes the styled latency history range selector',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1366, 900));

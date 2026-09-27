@@ -13,14 +13,15 @@ class RestoredDashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final snapshot = state.snapshot;
+    final hasLiveData = snapshot.monitoring && snapshot.samples > 0;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         _RestoredPageHeader(
-          eyebrow: 'OVERVIEW',
-          title: 'Connection dashboard',
+          eyebrow: 'NETWORK OVERVIEW',
+          title: 'Dashboard',
           subtitle:
-              'Live local monitoring powered by the Rust core architecture.',
+              'Connection health, latency and recent activity in one place.',
           trailing: FilledButton.icon(
             onPressed: state.toggleMonitoring,
             icon: Icon(snapshot.monitoring ? Icons.stop : Icons.play_arrow),
@@ -30,17 +31,16 @@ class RestoredDashboardPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-        _RestoredHero(snapshot: snapshot),
-        const SizedBox(height: 16),
+        _RestoredHero(snapshot: snapshot, hasLiveData: hasLiveData),
+        const SizedBox(height: 14),
         LayoutBuilder(
           builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 1000
+            final columns = constraints.maxWidth >= 760
                 ? 4
-                : constraints.maxWidth >= 560
+                : constraints.maxWidth >= 440
                     ? 2
                     : 1;
-            final width =
-                (constraints.maxWidth - (columns - 1) * 12) / columns;
+            final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
             return Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -49,8 +49,10 @@ class RestoredDashboardPage extends StatelessWidget {
                   width: width,
                   child: MetricCard(
                     label: 'Average latency',
-                    value: snapshot.averageLatency.toStringAsFixed(1),
-                    unit: 'ms',
+                    value: hasLiveData
+                        ? snapshot.averageLatency.toStringAsFixed(1)
+                        : '—',
+                    unit: hasLiveData ? 'ms' : '',
                     icon: Icons.speed,
                   ),
                 ),
@@ -58,8 +60,10 @@ class RestoredDashboardPage extends StatelessWidget {
                   width: width,
                   child: MetricCard(
                     label: 'Packet loss',
-                    value: snapshot.packetLoss.toStringAsFixed(1),
-                    unit: '%',
+                    value: hasLiveData
+                        ? snapshot.packetLoss.toStringAsFixed(1)
+                        : '—',
+                    unit: hasLiveData ? '%' : '',
                     icon: Icons.signal_cellular_alt,
                   ),
                 ),
@@ -67,8 +71,9 @@ class RestoredDashboardPage extends StatelessWidget {
                   width: width,
                   child: MetricCard(
                     label: 'Jitter',
-                    value: snapshot.jitter.toStringAsFixed(1),
-                    unit: 'ms',
+                    value:
+                        hasLiveData ? snapshot.jitter.toStringAsFixed(1) : '—',
+                    unit: hasLiveData ? 'ms' : '',
                     icon: Icons.show_chart,
                   ),
                 ),
@@ -76,7 +81,7 @@ class RestoredDashboardPage extends StatelessWidget {
                   width: width,
                   child: MetricCard(
                     label: 'Samples',
-                    value: snapshot.samples.toString(),
+                    value: hasLiveData ? snapshot.samples.toString() : '—',
                     icon: Icons.data_usage,
                   ),
                 ),
@@ -84,36 +89,29 @@ class RestoredDashboardPage extends StatelessWidget {
             );
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         LayoutBuilder(
           builder: (context, constraints) {
-            final sideBySide = constraints.maxWidth >= 1050;
+            final sideBySide = constraints.maxWidth >= 860;
             final chart = Panel(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'LIVE SIGNAL',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                  ),
-                  const SizedBox(height: 7),
                   Wrap(
-                    spacing: 14,
-                    runSpacing: 12,
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 12,
+                    runSpacing: 10,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'Latency history',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
                       ),
                       SizedBox(
-                        width: 190,
+                        width: 176,
                         child: DropdownButtonFormField<int>(
                           key: ValueKey<int>(state.config.graphRangeMinutes),
                           initialValue: state.config.graphRangeMinutes,
@@ -146,7 +144,7 @@ class RestoredDashboardPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 12),
                   LatencyChart(
                     targets: snapshot.targets,
                     rangeMinutes: state.config.graphRangeMinutes,
@@ -172,9 +170,22 @@ class RestoredDashboardPage extends StatelessWidget {
                       Badge(label: Text(snapshot.targets.length.toString())),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  for (final target in snapshot.targets)
-                    TargetCard(status: target),
+                  const SizedBox(height: 8),
+                  if (snapshot.targets.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 26),
+                      child:
+                          Text('Targets will appear when monitoring starts.'),
+                    )
+                  else
+                    for (var index = 0;
+                        index < snapshot.targets.length;
+                        index++)
+                      _DashboardTargetRow(
+                        status: snapshot.targets[index],
+                        showDivider: index > 0,
+                        showLatency: hasLiveData,
+                      ),
                 ],
               ),
             );
@@ -229,9 +240,10 @@ class RestoredDashboardPage extends StatelessWidget {
 }
 
 class _RestoredHero extends StatelessWidget {
-  const _RestoredHero({required this.snapshot});
+  const _RestoredHero({required this.snapshot, required this.hasLiveData});
 
   final NetworkSnapshot snapshot;
+  final bool hasLiveData;
 
   Color _color() => switch (snapshot.connectionState) {
         'online' => const Color(0xFF42D99A),
@@ -241,34 +253,45 @@ class _RestoredHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _color();
+    final scheme = Theme.of(context).colorScheme;
+    final color = snapshot.monitoring ? _color() : scheme.onSurfaceVariant;
+    final title = !snapshot.monitoring
+        ? 'Monitoring is off'
+        : hasLiveData
+            ? snapshot.connectionLabel
+            : 'Checking connection';
+    final description = !snapshot.monitoring
+        ? 'Start monitoring to see live connection health.'
+        : hasLiveData
+            ? 'Your connection is being checked continuously.'
+            : 'Waiting for the first measurements.';
     return Panel(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 620;
+          final compact = constraints.maxWidth < 560;
           final status = Row(
             children: [
               AnimatedContainer(
                 duration: NetWatcherMotion.normal,
                 curve: NetWatcherMotion.curve,
-                width: 56,
-                height: 56,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: AnimatedSwitcher(
                   duration: NetWatcherMotion.normal,
                   child: Icon(
-                    Icons.circle,
+                    snapshot.monitoring ? Icons.network_check : Icons.pause,
                     key: ValueKey<String>(snapshot.connectionState),
                     color: color,
-                    size: 18,
+                    size: 24,
                   ),
                 ),
               ),
-              const SizedBox(width: 18),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,60 +299,154 @@ class _RestoredHero extends StatelessWidget {
                     AnimatedSwitcher(
                       duration: NetWatcherMotion.normal,
                       child: Text(
-                        snapshot.connectionLabel,
-                        key: ValueKey<String>(snapshot.connectionLabel),
-                        style:
-                            Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                        title,
+                        key: ValueKey<String>(title),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 3),
                     Text(
-                      snapshot.monitoring
-                          ? 'Connection is being checked continuously.'
-                          : 'Start monitoring to collect live measurements.',
+                      description,
                       overflow: TextOverflow.visible,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
                     ),
                   ],
                 ),
               ),
             ],
           );
-          final score = SizedBox(
-            width: compact ? double.infinity : 110,
-            child: Column(
-              children: [
-                AnimatedSwitcher(
-                  duration: NetWatcherMotion.normal,
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: ScaleTransition(
-                      scale: Tween<double>(begin: .9, end: 1).animate(animation),
-                      child: child,
-                    ),
-                  ),
-                  child: Text(
-                    snapshot.qualityScore.toString(),
-                    key: ValueKey<int>(snapshot.qualityScore),
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: Theme.of(context).colorScheme.primary,
+          final score = Container(
+            key: hasLiveData
+                ? null
+                : const ValueKey<String>('dashboard-empty-state'),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .09),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: hasLiveData
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('CONNECTION QUALITY',
+                          style: Theme.of(context).textTheme.labelSmall),
+                      Text.rich(
+                        TextSpan(
+                          text: snapshot.qualityScore.toString(),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: color,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                          children: [
+                            TextSpan(
+                              text: ' / 100',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(
+                    snapshot.monitoring ? 'GATHERING DATA' : 'NO LIVE DATA',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: .8,
                         ),
                   ),
-                ),
-                const Text('QUALITY'),
-              ],
-            ),
           );
           if (compact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [status, const SizedBox(height: 22), score],
+              children: [
+                status,
+                const SizedBox(height: 14),
+                Align(alignment: Alignment.centerLeft, child: score),
+              ],
             );
           }
-          return Row(children: [Expanded(child: status), score]);
+          return Row(children: [
+            Expanded(child: status),
+            const SizedBox(width: 16),
+            score
+          ]);
         },
+      ),
+    );
+  }
+}
+
+class _DashboardTargetRow extends StatelessWidget {
+  const _DashboardTargetRow({
+    required this.status,
+    required this.showDivider,
+    required this.showLatency,
+  });
+
+  final TargetStatus status;
+  final bool showDivider;
+  final bool showLatency;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = switch (status.state) {
+      'online' => const Color(0xFF42D99A),
+      'offline' => scheme.error,
+      _ => scheme.onSurfaceVariant,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      decoration: BoxDecoration(
+        border: showDivider
+            ? Border(top: BorderSide(color: Theme.of(context).dividerColor))
+            : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  status.target.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  status.target.host,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            showLatency && status.state == 'online'
+                ? '${status.latency.toStringAsFixed(1)} ms'
+                : status.state == 'offline'
+                    ? 'Offline'
+                    : '—',
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }

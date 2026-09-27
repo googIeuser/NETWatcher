@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.7 - 2026-09-27
+
+- Reworked the dashboard with a clear monitoring state, compact live metrics and a scannable target list.
+- Replaced placeholder zero values with empty states until measurements arrive.
+- Made all three report actions visible in common desktop window sizes.
+- Simplified empty outage and custom target screens, and reduced excess card motion.
+
 ## 4.0.6 - 2026-09-26
 
 - Read only CSV headers when detecting delimiters and skip expired daily measurement files while loading recent history.
