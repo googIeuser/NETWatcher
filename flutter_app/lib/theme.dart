@@ -2,114 +2,90 @@ import 'package:flutter/material.dart';
 
 import 'motion.dart';
 
+/// The v5 visual system: warm paper, dark ink and a single signal accent.
 class NetWatcherTheme {
+  static const ink = Color(0xFF172821);
+  static const signal = Color(0xFFD9F46A);
+
   static ButtonStyle _buttonStyle() => ButtonStyle(
         mouseCursor: WidgetStateMouseCursor.clickable,
         animationDuration: NetWatcherMotion.fast,
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+        ),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 18, vertical: 15),
         ),
       );
 
-  static ThemeData dark() {
-    const background = Color(0xFF0D1119);
-    const panel = Color(0xFF161D29);
-    const border = Color(0xFF293547);
-    const blue = Color(0xFF4C8DFF);
-    return ThemeData(
+  static ThemeData _build({required bool dark}) {
+    final canvas = dark ? const Color(0xFF101A16) : const Color(0xFFF2F1E8);
+    final surface = dark ? const Color(0xFF1B2721) : const Color(0xFFFCFBF5);
+    final border = dark ? const Color(0xFF35443B) : const Color(0xFFCFD2C4);
+    final primary = dark ? signal : ink;
+    final text = dark ? const Color(0xFFF1F3E8) : ink;
+    final muted = dark ? const Color(0xFFADBBAE) : const Color(0xFF64736A);
+    final scheme = ColorScheme.fromSeed(
+      seedColor: primary,
+      brightness: dark ? Brightness.dark : Brightness.light,
+    ).copyWith(
+      primary: primary,
+      onPrimary: dark ? ink : Colors.white,
+      surface: surface,
+      onSurface: text,
+      onSurfaceVariant: muted,
+      outline: border,
+      error: dark ? const Color(0xFFFF8878) : const Color(0xFFAA443C),
+    );
+    final base = ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: background,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: blue,
-        brightness: Brightness.dark,
-        surface: panel,
-      ),
-      cardTheme: const CardThemeData(
-        color: panel,
+      brightness: dark ? Brightness.dark : Brightness.light,
+      colorScheme: scheme,
+      fontFamily: 'Bahnschrift',
+    );
+    return base.copyWith(
+      scaffoldBackgroundColor: canvas,
+      textTheme: base.textTheme.apply(bodyColor: text, displayColor: text),
+      cardTheme: CardThemeData(
+        color: surface,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
+          borderRadius: BorderRadius.circular(6),
           side: BorderSide(color: border),
         ),
-      ),
-      navigationRailTheme: const NavigationRailThemeData(
-        backgroundColor: Color(0xFF111722),
-        indicatorColor: Color(0xFF1A3154),
-      ),
-      navigationBarTheme: const NavigationBarThemeData(
-        height: 68,
-        indicatorColor: Color(0xFF1A3154),
       ),
       filledButtonTheme: FilledButtonThemeData(style: _buttonStyle()),
       elevatedButtonTheme: ElevatedButtonThemeData(style: _buttonStyle()),
       outlinedButtonTheme: OutlinedButtonThemeData(style: _buttonStyle()),
       textButtonTheme: TextButtonThemeData(style: _buttonStyle()),
       iconButtonTheme: IconButtonThemeData(style: _buttonStyle()),
+      dividerColor: border,
       tooltipTheme: const TooltipThemeData(
         waitDuration: Duration(milliseconds: 350),
       ),
-      dividerColor: border,
-      inputDecorationTheme: const InputDecorationTheme(
+      inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Color(0xFF1B2432),
+        fillColor: dark ? const Color(0xFF24332A) : Colors.white,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.circular(5),
           borderSide: BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.circular(5),
           borderSide: BorderSide(color: border),
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? primary : muted,
         ),
       ),
     );
   }
 
-  static ThemeData light() {
-    const blue = Color(0xFF2677EC);
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF3F6FA),
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: blue,
-        brightness: Brightness.light,
-        surface: Colors.white,
-      ),
-      cardTheme: const CardThemeData(
-        color: Colors.white,
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
-          side: BorderSide(color: Color(0xFFDBE3EE)),
-        ),
-      ),
-      navigationRailTheme: const NavigationRailThemeData(
-        backgroundColor: Colors.white,
-        indicatorColor: Color(0xFFDDEAFF),
-      ),
-      navigationBarTheme: const NavigationBarThemeData(
-        height: 68,
-        indicatorColor: Color(0xFFDDEAFF),
-      ),
-      filledButtonTheme: FilledButtonThemeData(style: _buttonStyle()),
-      elevatedButtonTheme: ElevatedButtonThemeData(style: _buttonStyle()),
-      outlinedButtonTheme: OutlinedButtonThemeData(style: _buttonStyle()),
-      textButtonTheme: TextButtonThemeData(style: _buttonStyle()),
-      iconButtonTheme: IconButtonThemeData(style: _buttonStyle()),
-      tooltipTheme: const TooltipThemeData(
-        waitDuration: Duration(milliseconds: 350),
-      ),
-      dividerColor: const Color(0xFFDBE3EE),
-      inputDecorationTheme: const InputDecorationTheme(
-        filled: true,
-        fillColor: Color(0xFFF6F8FB),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-        ),
-      ),
-    );
-  }
+  static ThemeData dark() => _build(dark: true);
+  static ThemeData light() => _build(dark: false);
 }

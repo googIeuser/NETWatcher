@@ -5,129 +5,19 @@ import 'package:flutter/material.dart';
 import 'models.dart';
 import 'motion.dart';
 
-class Panel extends StatefulWidget {
+class Panel extends StatelessWidget {
   const Panel({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
-    this.hoverEffect = false,
   });
 
   final Widget child;
   final EdgeInsets padding;
-  final bool hoverEffect;
 
   @override
-  State<Panel> createState() => _PanelState();
-}
-
-class _PanelState extends State<Panel> {
-  bool hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final end = widget.hoverEffect && hovered ? 1.0 : 0.0;
-    return MouseRegion(
-      onEnter:
-          widget.hoverEffect ? (_) => setState(() => hovered = true) : null,
-      onExit:
-          widget.hoverEffect ? (_) => setState(() => hovered = false) : null,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(end: end),
-        duration: NetWatcherMotion.fast,
-        curve: NetWatcherMotion.curve,
-        builder: (context, progress, child) => Transform.translate(
-          offset: Offset(0, -2 * progress),
-          child: Transform.scale(
-            scale: 1 + (.0025 * progress),
-            alignment: Alignment.center,
-            child: Card(
-              elevation: 5 * progress,
-              child: child,
-            ),
-          ),
-        ),
-        child: Padding(padding: widget.padding, child: widget.child),
-      ),
-    );
-  }
-}
-
-class MetricCard extends StatelessWidget {
-  const MetricCard({
-    super.key,
-    required this.label,
-    required this.value,
-    this.unit = '',
-    this.icon,
-  });
-
-  final String label;
-  final String value;
-  final String unit;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Panel(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (icon != null) ...[
-                Icon(icon,
-                    size: 16, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          AnimatedSwitcher(
-            duration: NetWatcherMotion.normal,
-            switchInCurve: NetWatcherMotion.curve,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: Tween<double>(begin: .96, end: 1).animate(animation),
-                child: child,
-              ),
-            ),
-            child: FittedBox(
-              key: ValueKey<String>('$value|$unit'),
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text.rich(
-                TextSpan(
-                  text: value,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                  children: [
-                    if (unit.isNotEmpty)
-                      TextSpan(
-                        text: ' $unit',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      Card(child: Padding(padding: padding, child: child));
 }
 
 class TargetCard extends StatelessWidget {
@@ -142,8 +32,8 @@ class TargetCard extends StatelessWidget {
 
   Color _stateColor(BuildContext context) {
     return switch (status.state) {
-      'online' => const Color(0xFF42D99A),
-      'offline' => const Color(0xFFFF6D80),
+      'online' => const Color(0xFF72B984),
+      'offline' => Theme.of(context).colorScheme.error,
       _ => Theme.of(context).colorScheme.onSurfaceVariant,
     };
   }
@@ -370,12 +260,12 @@ class LatencyChart extends StatelessWidget {
 
     final scheme = Theme.of(context).colorScheme;
     const colors = <Color>[
-      Color(0xFF4DA3FF),
-      Color(0xFFFF5FD2),
-      Color(0xFFFFD166),
-      Color(0xFF5BE7A9),
-      Color(0xFF9B8CFF),
-      Color(0xFFFF7A59),
+      Color(0xFF81B989),
+      Color(0xFFE7A574),
+      Color(0xFF76B9BE),
+      Color(0xFFB7A2D3),
+      Color(0xFFE4C06F),
+      Color(0xFFD8807B),
     ];
 
     return TweenAnimationBuilder<double>(

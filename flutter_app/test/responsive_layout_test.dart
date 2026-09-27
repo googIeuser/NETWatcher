@@ -54,4 +54,27 @@ void main() {
     }
     await tester.binding.setSurfaceSize(null);
   });
+
+  testWidgets('v5 top navigation opens every screen at desktop sizes',
+      (tester) async {
+    for (final size in const [Size(800, 600), Size(1246, 752)]) {
+      await tester.binding.setSurfaceSize(size);
+      final state = await AppState.create(
+        service: MockCoreService(),
+        pollSnapshots: false,
+        manageWindowsStartup: false,
+      );
+      await tester.pumpWidget(NetWatcherApp(state: state));
+      await tester.pumpAndSettle();
+      for (var page = 0; page < 6; page++) {
+        await tester.tap(find.byKey(ValueKey<String>('nav-$page')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'page $page at $size');
+      }
+      expect(find.text('Tune how NetWatcher runs on this computer.'),
+          findsOneWidget);
+      state.dispose();
+    }
+    await tester.binding.setSurfaceSize(null);
+  });
 }

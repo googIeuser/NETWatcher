@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.0.0 - 2026-09-27
+
+- Replaced the sidebar and dashboard with a new top-navigation network control desk.
+- Introduced a distinct paper-and-ink visual system with signal accents in light and dark themes.
+- Reorganized settings into two groups with a visible Save action and preserved all monitoring controls.
+- Added responsive navigation and layout coverage for every screen.
+
 ## 4.0.8 - 2026-09-27
 
 - Shortened report action labels so buttons remain on one line.
