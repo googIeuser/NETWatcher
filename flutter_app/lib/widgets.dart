@@ -10,7 +10,7 @@ class Panel extends StatefulWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
-    this.hoverEffect = true,
+    this.hoverEffect = false,
   });
 
   final Widget child;
@@ -28,8 +28,10 @@ class _PanelState extends State<Panel> {
   Widget build(BuildContext context) {
     final end = widget.hoverEffect && hovered ? 1.0 : 0.0;
     return MouseRegion(
-      onEnter: widget.hoverEffect ? (_) => setState(() => hovered = true) : null,
-      onExit: widget.hoverEffect ? (_) => setState(() => hovered = false) : null,
+      onEnter:
+          widget.hoverEffect ? (_) => setState(() => hovered = true) : null,
+      onExit:
+          widget.hoverEffect ? (_) => setState(() => hovered = false) : null,
       child: TweenAnimationBuilder<double>(
         tween: Tween<double>(end: end),
         duration: NetWatcherMotion.fast,
@@ -68,13 +70,15 @@ class MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Panel(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
+                Icon(icon,
+                    size: 16, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
               ],
               Expanded(
@@ -87,7 +91,7 @@ class MetricCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
           AnimatedSwitcher(
             duration: NetWatcherMotion.normal,
             switchInCurve: NetWatcherMotion.curve,
@@ -106,7 +110,7 @@ class MetricCard extends StatelessWidget {
               child: Text.rich(
                 TextSpan(
                   text: value,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                   children: [
@@ -246,15 +250,21 @@ class TargetCard extends StatelessWidget {
             children: [
               _TargetMetric(
                 label: 'Latency',
-                value: '${status.latency.toStringAsFixed(1)} ms',
+                value: status.state == 'waiting'
+                    ? '—'
+                    : '${status.latency.toStringAsFixed(1)} ms',
               ),
               _TargetMetric(
                 label: 'Packet loss',
-                value: '${status.packetLoss.toStringAsFixed(1)}%',
+                value: status.state == 'waiting'
+                    ? '—'
+                    : '${status.packetLoss.toStringAsFixed(1)}%',
               ),
               _TargetMetric(
                 label: 'Jitter',
-                value: '${status.jitter.toStringAsFixed(1)} ms',
+                value: status.state == 'waiting'
+                    ? '—'
+                    : '${status.jitter.toStringAsFixed(1)} ms',
               ),
             ],
           );
@@ -333,10 +343,27 @@ class LatencyChart extends StatelessWidget {
         .toList(growable: false);
 
     if (visibleTargets.isEmpty) {
-      return const SizedBox(
-        height: 280,
+      return SizedBox(
+        height: 176,
         child: Center(
-          child: Text('Latency history will appear after measurements arrive.'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.show_chart,
+                size: 30,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Latency history will appear after measurements arrive.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
         ),
       );
     }

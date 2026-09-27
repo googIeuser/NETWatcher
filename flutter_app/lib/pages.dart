@@ -168,56 +168,58 @@ class OutagesPage extends StatelessWidget {
           },
         ),
         const SizedBox(height: 18),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 1000
-                ? 4
-                : constraints.maxWidth >= 560
-                    ? 2
-                    : 1;
-            final width =
-                (constraints.maxWidth - (columns - 1) * 12) / columns;
-            return Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                SizedBox(
-                  width: width,
-                  child: _OutageSummaryCard(
-                    label: 'Incidents',
-                    value: incidents.length.toString(),
-                    icon: Icons.warning_amber_rounded,
+        if (incidents.isNotEmpty) ...[
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 760
+                  ? 4
+                  : constraints.maxWidth >= 560
+                      ? 2
+                      : 1;
+              final width =
+                  (constraints.maxWidth - (columns - 1) * 12) / columns;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: width,
+                    child: _OutageSummaryCard(
+                      label: 'Incidents',
+                      value: incidents.length.toString(),
+                      icon: Icons.warning_amber_rounded,
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _OutageSummaryCard(
-                    label: 'Active now',
-                    value: activeCount.toString(),
-                    icon: Icons.bolt_rounded,
+                  SizedBox(
+                    width: width,
+                    child: _OutageSummaryCard(
+                      label: 'Active now',
+                      value: activeCount.toString(),
+                      icon: Icons.bolt_rounded,
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _OutageSummaryCard(
-                    label: 'Total downtime',
-                    value: _formatDuration(totalSeconds),
-                    icon: Icons.timer_outlined,
+                  SizedBox(
+                    width: width,
+                    child: _OutageSummaryCard(
+                      label: 'Total downtime',
+                      value: _formatDuration(totalSeconds),
+                      icon: Icons.timer_outlined,
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _OutageSummaryCard(
-                    label: 'Longest incident',
-                    value: _formatDuration(longestSeconds),
-                    icon: Icons.timeline_rounded,
+                  SizedBox(
+                    width: width,
+                    child: _OutageSummaryCard(
+                      label: 'Longest incident',
+                      value: _formatDuration(longestSeconds),
+                      icon: Icons.timeline_rounded,
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 16),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
         AnimatedSwitcher(
           duration: NetWatcherMotion.normal,
           child: state.outagesLoading && incidents.isEmpty
@@ -235,12 +237,15 @@ class OutagesPage extends StatelessWidget {
                       key: ValueKey<String>('outages-empty'),
                       child: Center(
                         child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 50),
+                          padding: EdgeInsets.symmetric(vertical: 34),
                           child: Column(
                             children: [
-                              Icon(Icons.verified_outlined, size: 48),
-                              SizedBox(height: 14),
+                              Icon(Icons.verified_outlined, size: 36),
+                              SizedBox(height: 12),
                               Text('No confirmed outages in this range.'),
+                              SizedBox(height: 5),
+                              Text(
+                                  'Connection incidents will appear here as they happen.'),
                             ],
                           ),
                         ),
@@ -276,18 +281,19 @@ class _OutageSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Panel(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               label,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: 4),
             Text(
               value,
               overflow: TextOverflow.visible,
@@ -311,9 +317,8 @@ class OutageIncidentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appearance = _outageAppearance(incident.category);
-    final statusColor = incident.active
-        ? const Color(0xFFFF6D80)
-        : const Color(0xFF42D99A);
+    final statusColor =
+        incident.active ? const Color(0xFFFF6D80) : const Color(0xFF42D99A);
 
     return Panel(
       child: Column(
@@ -508,91 +513,83 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ),
         const SizedBox(height: 18),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth >= 1000
-                ? (constraints.maxWidth - 32) / 3
-                : constraints.maxWidth >= 620
-                    ? (constraints.maxWidth - 16) / 2
-                    : constraints.maxWidth;
-            return Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                _ReportCard(
-                  width: width,
-                  title: 'HTML report',
-                  description:
-                      'Connection measurements, target summaries and completed outage events in a printable page.',
-                  icon: Icons.description_outlined,
-                  busy: state.reportBusy,
-                  selector: DropdownButtonFormField<int>(
-                    key: ValueKey<int>(htmlHours),
-                    initialValue: htmlHours,
-                    decoration: const InputDecoration(labelText: 'Measurement range'),
-                    items: const [
-                      DropdownMenuItem(value: 1, child: Text('Last hour')),
-                      DropdownMenuItem(value: 24, child: Text('Last 24 hours')),
-                      DropdownMenuItem(value: 168, child: Text('Last 7 days')),
-                      DropdownMenuItem(value: 720, child: Text('Last 30 days')),
-                    ],
-                    onChanged: state.reportBusy
-                        ? null
-                        : (value) => setState(() => htmlHours = value ?? 24),
-                  ),
-                  buttonText: 'Create and open HTML report',
-                  onPressed: () => state.generateHtmlReport(htmlHours),
-                ),
-                _ReportCard(
-                  width: width,
-                  title: 'ISP Evidence Report',
-                  description:
-                      'Availability, packet loss, latency, jitter and outage evidence formatted for an ISP or regulator.',
-                  icon: Icons.fact_check_outlined,
-                  busy: state.reportBusy,
-                  selector: DropdownButtonFormField<int>(
-                    key: ValueKey<int>(evidenceDays),
-                    initialValue: evidenceDays,
-                    decoration: const InputDecoration(labelText: 'Evidence range'),
-                    items: const [
-                      DropdownMenuItem(value: 1, child: Text('Last 1 day')),
-                      DropdownMenuItem(value: 7, child: Text('Last 7 days')),
-                      DropdownMenuItem(value: 30, child: Text('Last 30 days')),
-                    ],
-                    onChanged: state.reportBusy
-                        ? null
-                        : (value) => setState(() => evidenceDays = value ?? 7),
-                  ),
-                  buttonText: 'Create and open evidence report',
-                  onPressed: () => state.generateEvidenceReport(evidenceDays),
-                ),
-                _ReportCard(
-                  width: width,
-                  title: 'Diagnostics ZIP',
-                  description:
-                      'Exports settings, snapshot, calculated statistics, outages and the original local CSV logs.',
-                  icon: Icons.archive_outlined,
-                  busy: state.reportBusy,
-                  selector: DropdownButtonFormField<int>(
-                    key: ValueKey<int>(diagnosticsHours),
-                    initialValue: diagnosticsHours,
-                    decoration: const InputDecoration(labelText: 'Summary range'),
-                    items: const [
-                      DropdownMenuItem(value: 24, child: Text('Last 24 hours')),
-                      DropdownMenuItem(value: 168, child: Text('Last 7 days')),
-                      DropdownMenuItem(value: 720, child: Text('Last 30 days')),
-                    ],
-                    onChanged: state.reportBusy
-                        ? null
-                        : (value) =>
-                            setState(() => diagnosticsHours = value ?? 168),
-                  ),
-                  buttonText: 'Create diagnostics ZIP',
-                  onPressed: () => state.exportDiagnostics(diagnosticsHours),
-                ),
-              ],
-            );
-          },
+        Column(
+          children: [
+            _ReportCard(
+              title: 'HTML report',
+              description:
+                  'Connection measurements, target summaries and completed outage events in a printable page.',
+              icon: Icons.description_outlined,
+              busy: state.reportBusy,
+              selector: DropdownButtonFormField<int>(
+                key: ValueKey<int>(htmlHours),
+                initialValue: htmlHours,
+                isExpanded: true,
+                decoration:
+                    const InputDecoration(labelText: 'Measurement range'),
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text('Last hour')),
+                  DropdownMenuItem(value: 24, child: Text('Last 24 hours')),
+                  DropdownMenuItem(value: 168, child: Text('Last 7 days')),
+                  DropdownMenuItem(value: 720, child: Text('Last 30 days')),
+                ],
+                onChanged: state.reportBusy
+                    ? null
+                    : (value) => setState(() => htmlHours = value ?? 24),
+              ),
+              buttonText: 'Create and open HTML report',
+              onPressed: () => state.generateHtmlReport(htmlHours),
+            ),
+            const SizedBox(height: 12),
+            _ReportCard(
+              title: 'ISP Evidence Report',
+              description:
+                  'Availability, packet loss, latency, jitter and outage evidence formatted for an ISP or regulator.',
+              icon: Icons.fact_check_outlined,
+              busy: state.reportBusy,
+              selector: DropdownButtonFormField<int>(
+                key: ValueKey<int>(evidenceDays),
+                initialValue: evidenceDays,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Evidence range'),
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text('Last 1 day')),
+                  DropdownMenuItem(value: 7, child: Text('Last 7 days')),
+                  DropdownMenuItem(value: 30, child: Text('Last 30 days')),
+                ],
+                onChanged: state.reportBusy
+                    ? null
+                    : (value) => setState(() => evidenceDays = value ?? 7),
+              ),
+              buttonText: 'Create and open evidence report',
+              onPressed: () => state.generateEvidenceReport(evidenceDays),
+            ),
+            const SizedBox(height: 12),
+            _ReportCard(
+              title: 'Diagnostics ZIP',
+              description:
+                  'Exports settings, snapshot, calculated statistics, outages and the original local CSV logs.',
+              icon: Icons.archive_outlined,
+              busy: state.reportBusy,
+              selector: DropdownButtonFormField<int>(
+                key: ValueKey<int>(diagnosticsHours),
+                initialValue: diagnosticsHours,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Summary range'),
+                items: const [
+                  DropdownMenuItem(value: 24, child: Text('Last 24 hours')),
+                  DropdownMenuItem(value: 168, child: Text('Last 7 days')),
+                  DropdownMenuItem(value: 720, child: Text('Last 30 days')),
+                ],
+                onChanged: state.reportBusy
+                    ? null
+                    : (value) =>
+                        setState(() => diagnosticsHours = value ?? 168),
+              ),
+              buttonText: 'Create diagnostics ZIP',
+              onPressed: () => state.exportDiagnostics(diagnosticsHours),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         AnimatedSwitcher(
@@ -608,7 +605,9 @@ class _ReportsPageState extends State<ReportsPage> {
                         child: CircularProgressIndicator(strokeWidth: 2.5),
                       ),
                       SizedBox(width: 14),
-                      Expanded(child: Text('Preparing the report from local data...')),
+                      Expanded(
+                          child:
+                              Text('Preparing the report from local data...')),
                     ],
                   ),
                 )
@@ -667,7 +666,11 @@ class _ReportsPageState extends State<ReportsPage> {
                           if (constraints.maxWidth < 720) {
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [copy, const SizedBox(height: 16), actions],
+                              children: [
+                                copy,
+                                const SizedBox(height: 16),
+                                actions
+                              ],
                             );
                           }
                           return Row(
@@ -695,7 +698,6 @@ class _ReportsPageState extends State<ReportsPage> {
 
 class _ReportCard extends StatelessWidget {
   const _ReportCard({
-    required this.width,
     required this.title,
     required this.description,
     required this.icon,
@@ -705,7 +707,6 @@ class _ReportCard extends StatelessWidget {
     required this.onPressed,
   });
 
-  final double width;
   final String title;
   final String description;
   final IconData icon;
@@ -715,52 +716,84 @@ class _ReportCard extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: width,
-        child: Panel(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) => Panel(
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 700;
+            final identity = Row(
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: .12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(13),
-                      child: Icon(
-                        icon,
-                        size: 30,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: .10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 22,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
-                const SizedBox(height: 18),
-                Text(
-                  title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        description,
+                        maxLines: compact ? 3 : 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Text(description),
-                const SizedBox(height: 20),
-                selector,
-                const SizedBox(height: 14),
-                FilledButton.icon(
-                  onPressed: busy ? null : onPressed,
-                  icon: const Icon(Icons.auto_awesome),
-                  label: Text(buttonText),
-                ),
-            ],
-          ),
+              ],
+            );
+            final action = FilledButton.icon(
+              onPressed: busy ? null : onPressed,
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: Text(buttonText),
+            );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  identity,
+                  const SizedBox(height: 14),
+                  selector,
+                  const SizedBox(height: 10),
+                  action,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: identity),
+                const SizedBox(width: 20),
+                SizedBox(width: 174, child: selector),
+                const SizedBox(width: 12),
+                SizedBox(width: 258, child: action),
+              ],
+            );
+          },
         ),
       );
 }
@@ -827,8 +860,17 @@ class _TargetsPageState extends State<TargetsPage> {
               children: [
                 if (widget.state.config.customTargets.isEmpty)
                   const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('No custom targets.'),
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Column(
+                      children: [
+                        Icon(Icons.radar_outlined, size: 30),
+                        SizedBox(height: 10),
+                        Text('No custom targets yet.'),
+                        SizedBox(height: 4),
+                        Text(
+                            'Default gateway, Cloudflare and Google are already included.'),
+                      ],
+                    ),
                   ),
                 for (final target in widget.state.config.customTargets)
                   ListTile(

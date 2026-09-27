@@ -20,6 +20,29 @@ class _ImmediateReportService extends MockCoreService {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('all report actions fit in a common desktop window',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1246, 752));
+    final state = await AppState.create(
+      service: MockCoreService(),
+      pollSnapshots: false,
+      manageWindowsStartup: false,
+    );
+
+    addTearDown(() async {
+      state.dispose();
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    await tester.pumpWidget(NetWatcherApp(state: state));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('nav-3')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create diagnostics ZIP').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('reports page exposes working report actions', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1366, 900));
     final state = await AppState.create(
