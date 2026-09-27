@@ -537,7 +537,7 @@ class _ReportsPageState extends State<ReportsPage> {
                     ? null
                     : (value) => setState(() => htmlHours = value ?? 24),
               ),
-              buttonText: 'Create and open HTML report',
+              buttonText: 'Create HTML report',
               onPressed: () => state.generateHtmlReport(htmlHours),
             ),
             const SizedBox(height: 12),
@@ -561,7 +561,7 @@ class _ReportsPageState extends State<ReportsPage> {
                     ? null
                     : (value) => setState(() => evidenceDays = value ?? 7),
               ),
-              buttonText: 'Create and open evidence report',
+              buttonText: 'Create evidence report',
               onPressed: () => state.generateEvidenceReport(evidenceDays),
             ),
             const SizedBox(height: 12),
@@ -826,9 +826,9 @@ class _TargetsPageState extends State<TargetsPage> {
           ),
           const SizedBox(height: 18),
           Panel(
-            child: Column(
-              children: [
-                TextField(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final input = TextField(
                   controller: controller,
                   decoration: const InputDecoration(
                     labelText: 'Target',
@@ -838,20 +838,33 @@ class _TargetsPageState extends State<TargetsPage> {
                     await widget.state.addTarget(value);
                     controller.clear();
                   },
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed: () async {
-                      await widget.state.addTarget(controller.text);
-                      controller.clear();
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add target'),
-                  ),
-                ),
-              ],
+                );
+                final add = FilledButton.icon(
+                  onPressed: () async {
+                    await widget.state.addTarget(controller.text);
+                    controller.clear();
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add target'),
+                );
+                if (constraints.maxWidth < 640) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      input,
+                      const SizedBox(height: 12),
+                      add,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: input),
+                    const SizedBox(width: 12),
+                    add,
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 16),

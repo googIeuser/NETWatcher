@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.8 - 2026-09-27
+
+- Shortened report action labels so buttons remain on one line.
+- Made the target count badge neutral and aligned the target form on desktop widths.
+
 ## 4.0.7 - 2026-09-27
 
 - Reworked the dashboard with a clear monitoring state, compact live metrics and a scannable target list.

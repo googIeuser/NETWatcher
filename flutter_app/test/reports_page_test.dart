@@ -63,10 +63,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('ISP Evidence Report'), findsOneWidget);
-    expect(find.text('Create and open evidence report'), findsOneWidget);
+    expect(find.text('Create evidence report'), findsOneWidget);
     expect(find.text('Coming in core integration'), findsNothing);
 
-    await tester.tap(find.text('Create and open evidence report'));
+    await tester.tap(find.text('Create evidence report'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
