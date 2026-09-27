@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.1 - 2026-09-28
+
+- Show "No response" in the latency chart legend when a target is offline instead of a misleading zero-millisecond value.
+- Restyle generated HTML and ISP evidence reports to match the 5.0 control-desk interface.
+
 ## 5.0.0 - 2026-09-27
 
 - Replaced the sidebar and dashboard with a new top-navigation network control desk.

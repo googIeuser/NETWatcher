@@ -14,7 +14,7 @@ use crate::{
     storage::Store,
 };
 
-const PAGE_CSS: &str = r#":root{color-scheme:light dark;--bg:#0d1119;--card:#161d29;--line:#2a3547;--text:#eef3fb;--muted:#9aa8ba;--blue:#3175e7;--cyan:#61a1ff;--green:#42d99a;--yellow:#ffbd59;--red:#ff6d80}*{box-sizing:border-box}body{font:14px/1.55 "Segoe UI",Arial,sans-serif;margin:0;background:var(--bg);color:var(--text)}.wrap{max-width:1180px;margin:auto;padding:28px}.hero{background:linear-gradient(135deg,var(--blue),var(--cyan));padding:28px;border-radius:20px;color:#fff;box-shadow:0 18px 50px #0005}.hero-row{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.hero h1{margin:0 0 8px;font-size:32px}.hero p{margin:0;opacity:.94}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:18px}.metric,.card{background:var(--card);border:1px solid var(--line);border-radius:16px}.metric{padding:18px}.metric span{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.metric strong{display:block;margin-top:6px;font-size:25px}.card{padding:20px;margin-top:18px;overflow:auto}.card h2{margin:0 0 14px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:800px}th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--line)}th{color:#8ec5ff;font-weight:650}.tag{display:inline-block;padding:4px 9px;border-radius:999px;background:#263546}.tag.bad{background:#4a2430;color:#ffc0ca}.tag.warn{background:#4b3b18;color:#ffe08a}.note{color:var(--muted);margin:18px 4px}.print-button{border:0;border-radius:10px;padding:10px 14px;background:#fff;color:#0758b8;font-weight:700;cursor:pointer}@media(max-width:700px){.wrap{padding:14px}.hero-row{display:block}.print-button{margin-top:14px}}@media(prefers-color-scheme:light){:root{--bg:#f3f6fa;--card:#fff;--line:#d9e2ec;--text:#18222d;--muted:#5f7185}.metric,.card{box-shadow:0 8px 28px #3452}}@media print{body{background:#fff;color:#111}.wrap{max-width:none;padding:0}.hero{box-shadow:none}.print-button{display:none}.metric,.card{break-inside:avoid}}"#;
+const PAGE_CSS: &str = include_str!("report_style.css");
 
 fn escape(value: &str) -> String {
     value
@@ -324,9 +324,12 @@ mod tests {
             .unwrap();
         let html = generate_html(&store, 24).unwrap();
         assert!(Path::new(&html.path).exists());
+        let html_text = fs::read_to_string(&html.path).unwrap();
+        assert!(html_text.contains("NETWORK CONTROL DESK"));
         let evidence = generate_evidence(&store, 7).unwrap();
         let evidence_text = fs::read_to_string(evidence.path).unwrap();
         assert!(evidence_text.contains("ISP Evidence Report"));
+        assert!(evidence_text.contains("NETWORK CONTROL DESK"));
         let diagnostics = export_diagnostics(
             &store,
             &Config::default(),
