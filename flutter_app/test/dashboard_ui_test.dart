@@ -55,6 +55,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('four dashboard metrics share one row on desktop',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1260, 760));
+    final state = await AppState.create(
+      service: MockCoreService(),
+      pollSnapshots: false,
+      manageWindowsStartup: false,
+    );
+    addTearDown(() async {
+      state.dispose();
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    await tester.pumpWidget(NetWatcherApp(state: state));
+    await tester.pumpAndSettle();
+
+    final first = tester.getTopLeft(find.text('01  /  AVG LATENCY'));
+    final last = tester.getTopLeft(find.text('04  /  SAMPLES'));
+    expect(last.dy, first.dy);
+    expect(last.dx, greaterThan(first.dx));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('statistics list starts without an empty top divider strip',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1366, 900));

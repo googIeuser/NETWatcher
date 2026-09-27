@@ -21,7 +21,6 @@ class StatisticsPage extends StatelessWidget {
           const SizedBox(height: 18),
           Panel(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-            hoverEffect: false,
             child: Column(
               children: [
                 for (var index = 0;
@@ -916,30 +915,39 @@ class _PageHeader extends StatelessWidget {
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.only(bottom: 18),
+        decoration: BoxDecoration(
+          border:
+              Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+        ),
+        child: LayoutBuilder(builder: (context, constraints) {
           final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 eyebrow,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontFamily: 'Consolas',
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.3,
+                      letterSpacing: 1.8,
                     ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 7),
               Text(
                 title,
                 overflow: TextOverflow.visible,
                 style: Theme.of(context)
                     .textTheme
                     .headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.w900),
+                    ?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -.6),
               ),
-              const SizedBox(height: 5),
-              Text(subtitle, overflow: TextOverflow.visible),
+              const SizedBox(height: 4),
+              Text(subtitle,
+                  overflow: TextOverflow.visible,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ],
           );
           if (trailing == null) return copy;
@@ -963,6 +971,6 @@ class _PageHeader extends StatelessWidget {
               ),
             ],
           );
-        },
+        }),
       );
 }
