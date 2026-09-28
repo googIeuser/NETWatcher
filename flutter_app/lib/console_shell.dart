@@ -29,7 +29,10 @@ class _NetworkConsoleShellState extends State<NetworkConsoleShell> {
   Widget _page() => KeyedSubtree(
         key: ValueKey<int>(selected),
         child: switch (selected) {
-          0 => ConsoleDashboardPage(state: widget.state),
+          0 => ConsoleDashboardPage(
+              state: widget.state,
+              onViewTargets: () => setState(() => selected = 4),
+            ),
           1 => StatisticsPage(state: widget.state),
           2 => OutagesPage(state: widget.state),
           3 => ReportsPage(state: widget.state),
@@ -193,7 +196,7 @@ class _NetworkConsoleShellState extends State<NetworkConsoleShell> {
   }
 }
 
-class _RailItem extends StatelessWidget {
+class _RailItem extends StatefulWidget {
   const _RailItem({
     super.key,
     required this.icon,
@@ -208,29 +211,51 @@ class _RailItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_RailItem> createState() => _RailItemState();
+}
+
+class _RailItemState extends State<_RailItem> {
+  bool focused = false;
+
+  @override
   Widget build(BuildContext context) => Tooltip(
-        message: label,
+        message: widget.label,
         child: Semantics(
-          label: label,
+          label: widget.label,
           button: true,
-          selected: selected,
+          selected: widget.selected,
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: onTap,
+              onTap: widget.onTap,
+              onFocusChange: (value) => setState(() => focused = value),
               mouseCursor: SystemMouseCursors.click,
+              hoverColor: Colors.transparent,
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              focusColor: Colors.transparent,
+              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
               child: Container(
                 width: 52,
                 height: 50,
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 decoration: BoxDecoration(
-                  color: selected ? NetWatcherTheme.signal : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.transparent,
+                  border: Border(
+                    left: BorderSide(
+                      color: widget.selected
+                          ? NetWatcherTheme.signal
+                          : focused
+                              ? Colors.white
+                              : Colors.transparent,
+                      width: 3,
+                    ),
+                  ),
                 ),
-                child: Icon(icon,
+                child: Icon(widget.icon,
                     size: 23,
-                    color: selected
-                        ? NetWatcherTheme.ink
+                    color: widget.selected
+                        ? NetWatcherTheme.signal
                         : const Color(0xFF9CB3A3)),
               ),
             ),

@@ -6,9 +6,14 @@ import 'network_map.dart';
 import 'widgets.dart';
 
 class ConsoleDashboardPage extends StatelessWidget {
-  const ConsoleDashboardPage({super.key, required this.state});
+  const ConsoleDashboardPage({
+    super.key,
+    required this.state,
+    required this.onViewTargets,
+  });
 
   final AppState state;
+  final VoidCallback onViewTargets;
 
   @override
   Widget build(BuildContext context) {
@@ -111,42 +116,66 @@ class ConsoleDashboardPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _Eyebrow('TELEMETRY  /  02'),
-                const SizedBox(height: 11),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text('Latency history',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            )),
-                    SizedBox(
-                      width: 174,
-                      child: DropdownButtonFormField<int>(
-                        key: ValueKey<int>(state.config.graphRangeMinutes),
-                        initialValue: state.config.graphRangeMinutes,
-                        isExpanded: true,
-                        decoration:
-                            const InputDecoration(labelText: 'History range'),
-                        items: const [
-                          DropdownMenuItem(
-                              value: 5, child: Text('Last 5 minutes')),
-                          DropdownMenuItem(
-                              value: 30, child: Text('Last 30 minutes')),
-                          DropdownMenuItem(value: 60, child: Text('Last hour')),
-                          DropdownMenuItem(
-                              value: 1440, child: Text('Last 24 hours')),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) state.setGraphRange(value);
-                        },
+                LayoutBuilder(builder: (context, headerWidth) {
+                  final heading = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _Eyebrow('TELEMETRY  /  LIVE TRACE'),
+                      const SizedBox(height: 8),
+                      Text('Latency history',
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  )),
+                      const SizedBox(height: 3),
+                      Text('Measured time, shown at a readable scale',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  )),
+                    ],
+                  );
+                  final range = SizedBox(
+                    width: 166,
+                    child: DropdownButtonFormField<int>(
+                      key: ValueKey<int>(state.config.graphRangeMinutes),
+                      initialValue: state.config.graphRangeMinutes,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'History range',
+                        isDense: true,
                       ),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 5, child: Text('Last 5 minutes')),
+                        DropdownMenuItem(
+                            value: 30, child: Text('Last 30 minutes')),
+                        DropdownMenuItem(value: 60, child: Text('Last hour')),
+                        DropdownMenuItem(
+                            value: 1440, child: Text('Last 24 hours')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) state.setGraphRange(value);
+                      },
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                  );
+                  if (headerWidth.maxWidth < 530) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [heading, const SizedBox(height: 14), range],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: heading),
+                      const SizedBox(width: 16),
+                      range,
+                    ],
+                  );
+                }),
+                const SizedBox(height: 18),
                 LatencyChart(
                   targets: snapshot.targets,
                   rangeMinutes: state.config.graphRangeMinutes,
@@ -185,12 +214,22 @@ class ConsoleDashboardPage extends StatelessWidget {
                     child: Text('Targets will appear when monitoring starts.'),
                   )
                 else
-                  for (var i = 0; i < snapshot.targets.length; i++)
+                  for (var i = 0; i < snapshot.targets.length && i < 6; i++)
                     _EndpointRow(
                       number: i + 1,
                       status: snapshot.targets[i],
                       live: live,
                     ),
+                if (snapshot.targets.length > 6)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: onViewTargets,
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 17),
+                      label:
+                          Text('View all ${snapshot.targets.length} targets'),
+                    ),
+                  ),
               ],
             ),
           );

@@ -216,7 +216,41 @@ class _TargetMetric extends StatelessWidget {
       );
 }
 
-class LatencyChart extends StatelessWidget {
+/// The actual measured interval inside the selected history range.
+class LatencyViewport {
+  const LatencyViewport({required this.start, required this.end});
+
+  final DateTime start;
+  final DateTime end;
+
+  static LatencyViewport? forTargets(
+    List<TargetStatus> targets, {
+    required int rangeMinutes,
+    required DateTime now,
+  }) {
+    final cutoff = now.subtract(Duration(minutes: rangeMinutes));
+    DateTime? first;
+    DateTime? last;
+    for (final target in targets) {
+      for (final sample in target.history) {
+        if (sample.time.isBefore(cutoff) || sample.time.isAfter(now)) continue;
+        if (first == null || sample.time.isBefore(first)) first = sample.time;
+        if (last == null || sample.time.isAfter(last)) last = sample.time;
+      }
+    }
+    if (first == null || last == null) return null;
+    final span = last.difference(first).inMilliseconds;
+    final padding =
+        Duration(milliseconds: math.max(1200, (span * .08).round()));
+    final paddedStart = first.subtract(padding);
+    return LatencyViewport(
+      start: paddedStart.isBefore(cutoff) ? cutoff : paddedStart,
+      end: last.add(padding),
+    );
+  }
+}
+
+class LatencyChart extends StatefulWidget {
   const LatencyChart({
     super.key,
     required this.targets,
@@ -225,6 +259,13 @@ class LatencyChart extends StatelessWidget {
 
   final List<TargetStatus> targets;
   final int rangeMinutes;
+
+  @override
+  State<LatencyChart> createState() => _LatencyChartState();
+}
+
+class _LatencyChartState extends State<LatencyChart> {
+  String? selectedTargetId;
 
   String _legendValue(TargetStatus target) {
     if (target.state == 'offline' || target.latency <= 0) {
@@ -235,11 +276,28 @@ class LatencyChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleTargets = targets
-        .where((target) => target.history.isNotEmpty)
+    final now = DateTime.now();
+    final cutoff = now.subtract(Duration(minutes: widget.rangeMinutes));
+    final allVisibleTargets = widget.targets
+        .where((target) => target.history.any((sample) =>
+            !sample.time.isBefore(cutoff) && !sample.time.isAfter(now)))
         .toList(growable: false);
+    final selectedTargets = allVisibleTargets
+        .where((target) => target.target.id == selectedTargetId)
+        .toList(growable: false);
+    final showingOne = selectedTargetId != null && selectedTargets.isNotEmpty;
+    final visibleTargets = showingOne
+        ? selectedTargets
+        : allVisibleTargets.take(4).toList(growable: false);
+    final moreCount =
+        showingOne ? 0 : allVisibleTargets.length - visibleTargets.length;
+    final viewport = LatencyViewport.forTargets(
+      visibleTargets,
+      rangeMinutes: widget.rangeMinutes,
+      now: now,
+    );
 
-    if (visibleTargets.isEmpty) {
+    if (viewport == null) {
       return SizedBox(
         height: 176,
         child: Center(
@@ -290,14 +348,15 @@ class LatencyChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            height: 280,
+            height: 224,
             child: CustomPaint(
               painter: _LatencyPainter(
                 grid: Theme.of(context).dividerColor,
                 textColor: scheme.onSurface.withValues(alpha: .88),
                 targets: visibleTargets,
                 colors: colors,
-                rangeMinutes: rangeMinutes,
+                viewport: viewport,
+                cutoff: cutoff,
               ),
               child: const SizedBox.expand(),
             ),
@@ -327,18 +386,70 @@ class LatencyChart extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 7),
-                    Text(
-                      '${visibleTargets[index].target.name}: '
-                      '${_legendValue(visibleTargets[index])}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    Flexible(
+                      child: Text(
+                        '${visibleTargets[index].target.name}: '
+                        '${_legendValue(visibleTargets[index])}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
                     ),
                   ],
                 ),
+              if (moreCount > 0)
+                Text('$moreCount more targets',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        )),
             ],
           ),
+          if (allVisibleTargets.length > 4) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: PopupMenuButton<String>(
+                key: const ValueKey<String>('chart-target-filter'),
+                tooltip: 'Choose chart target',
+                onSelected: (value) => setState(() {
+                  selectedTargetId = value.isEmpty ? null : value;
+                }),
+                itemBuilder: (context) => [
+                  const PopupMenuItem<String>(
+                    value: '',
+                    child: Text('First 4 targets'),
+                  ),
+                  for (final target in allVisibleTargets)
+                    PopupMenuItem<String>(
+                      value: target.target.id,
+                      child: Text(target.target.name,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.tune_rounded, size: 16, color: scheme.primary),
+                      const SizedBox(width: 7),
+                      Text(
+                        showingOne ? 'Change target' : 'Choose a target',
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -351,25 +462,25 @@ class _LatencyPainter extends CustomPainter {
     required this.textColor,
     required this.targets,
     required this.colors,
-    this.rangeMinutes = 5,
+    required this.viewport,
+    required this.cutoff,
   });
 
   final Color grid;
   final Color textColor;
   final List<TargetStatus> targets;
   final List<Color> colors;
-  final int rangeMinutes;
+  final LatencyViewport viewport;
+  final DateTime cutoff;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final now = DateTime.now();
-    final start = now.subtract(Duration(minutes: rangeMinutes));
     final plot = Rect.fromLTRB(64, 12, size.width - 14, size.height - 34);
 
     final successful = <LatencySample>[
       for (final target in targets)
         for (final sample in target.history)
-          if (sample.success && !sample.time.isBefore(start)) sample,
+          if (sample.success && !sample.time.isBefore(cutoff)) sample,
     ];
 
     final rawMax = successful.isEmpty
@@ -408,7 +519,7 @@ class _LatencyPainter extends CustomPainter {
 
     _drawText(
       canvas,
-      _formatTime(start),
+      _formatTime(viewport.start, withSeconds: _showSeconds),
       Offset(plot.left, plot.bottom + 8),
       textColor,
       fontSize: 11,
@@ -416,26 +527,31 @@ class _LatencyPainter extends CustomPainter {
     );
     _drawText(
       canvas,
-      _formatTime(start.add(Duration(minutes: rangeMinutes ~/ 2))),
-      Offset(plot.center.dx - 22, plot.bottom + 8),
+      _formatTime(
+          viewport.start.add(Duration(
+              milliseconds:
+                  viewport.end.difference(viewport.start).inMilliseconds ~/ 2)),
+          withSeconds: _showSeconds),
+      Offset(plot.center.dx - 30, plot.bottom + 8),
       textColor,
       fontSize: 11,
       fontWeight: FontWeight.w600,
     );
     _drawText(
       canvas,
-      _formatTime(now),
-      Offset(plot.right - 42, plot.bottom + 8),
+      _formatTime(viewport.end, withSeconds: _showSeconds),
+      Offset(plot.right - 58, plot.bottom + 8),
       textColor,
       fontSize: 11,
       fontWeight: FontWeight.w600,
     );
 
-    final rangeMs = Duration(minutes: rangeMinutes).inMilliseconds.toDouble();
+    final rangeMs =
+        viewport.end.difference(viewport.start).inMilliseconds.toDouble();
     for (var targetIndex = 0; targetIndex < targets.length; targetIndex++) {
       final samples = targets[targetIndex]
           .history
-          .where((sample) => !sample.time.isBefore(start))
+          .where((sample) => !sample.time.isBefore(cutoff))
           .toList(growable: false);
       if (samples.isEmpty) continue;
 
@@ -447,7 +563,8 @@ class _LatencyPainter extends CustomPainter {
           drawing = false;
           continue;
         }
-        final elapsed = sample.time.difference(start).inMilliseconds.toDouble();
+        final elapsed =
+            sample.time.difference(viewport.start).inMilliseconds.toDouble();
         final x = plot.left +
             (elapsed / rangeMs).clamp(0.0, 1.0).toDouble() * plot.width;
         final y = plot.bottom -
@@ -494,9 +611,13 @@ class _LatencyPainter extends CustomPainter {
     }
   }
 
-  static String _formatTime(DateTime value) {
+  bool get _showSeconds =>
+      viewport.end.difference(viewport.start) < const Duration(minutes: 2);
+
+  static String _formatTime(DateTime value, {required bool withSeconds}) {
     String two(int number) => number.toString().padLeft(2, '0');
-    return '${two(value.hour)}:${two(value.minute)}';
+    final minutes = '${two(value.hour)}:${two(value.minute)}';
+    return withSeconds ? '$minutes:${two(value.second)}' : minutes;
   }
 
   static void _drawText(
@@ -531,5 +652,7 @@ class _LatencyPainter extends CustomPainter {
       oldDelegate.grid != grid ||
       oldDelegate.textColor != textColor ||
       oldDelegate.colors != colors ||
-      oldDelegate.rangeMinutes != rangeMinutes;
+      oldDelegate.viewport.start != viewport.start ||
+      oldDelegate.viewport.end != viewport.end ||
+      oldDelegate.cutoff != cutoff;
 }
