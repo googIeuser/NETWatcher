@@ -76,24 +76,12 @@ class _NetworkConsoleShellState extends State<NetworkConsoleShell> {
               ),
               child: Row(
                 children: [
-                  Container(
+                  Image.asset(
+                    'assets/app_icon.png',
                     width: 39,
                     height: 39,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: scheme.primary,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'N',
-                      style: TextStyle(
-                        color: scheme.onPrimary,
-                        fontFamily: 'Bahnschrift',
-                        fontWeight: FontWeight.w900,
-                        fontSize: 27,
-                        height: 1,
-                      ),
-                    ),
+                    filterQuality: FilterQuality.high,
+                    semanticLabel: 'NetWatcher logo',
                   ),
                   const SizedBox(width: 13),
                   Column(

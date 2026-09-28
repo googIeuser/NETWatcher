@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.2 - 2026-09-28
+
+- Replace the legacy blue pulse icon with a lime-and-ink mark that matches the new control-desk interface.
+- Use the same mark in the app header, Windows executable, tray, shortcuts and installer.
+
 ## 5.0.1 - 2026-09-28
 
 - Show "No response" in the latency chart legend when a target is offline instead of a misleading zero-millisecond value.
