@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.1.2 - 2026-09-28
+
+- Show up to ten monitored endpoints on the network map with evenly spaced connections.
+- Keep the map readable in compact windows and show an overflow count beyond ten targets.
+
 ## 5.1.1 - 2026-09-28
 
 - Scale the latency chart to the measured interval inside the selected history range, so early samples remain readable.
