@@ -17,7 +17,7 @@ on:
       version:
         description: "Version without the v prefix"
         required: true
-        default: "5.1.1"
+        default: "5.1.2"
 
 permissions:
   contents: read

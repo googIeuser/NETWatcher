@@ -22,7 +22,15 @@ class NetworkMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final targets = snapshot.targets.take(4).toList(growable: false);
+    final targets = snapshot.targets.take(10).toList(growable: false);
+    final rows = (targets.length + 1) ~/ 2;
+    final mapHeight = math.max(286.0, rows * 98.0 + 20);
+    final alignments = List<Alignment>.generate(targets.length, (index) {
+      final extent = rows <= 2 ? .56 : 1 - 100 / mapHeight;
+      final y =
+          rows <= 1 ? 0.0 : -extent + 2 * extent * (index ~/ 2) / (rows - 1);
+      return Alignment(index.isEven ? -.77 : .77, y);
+    });
     final status = !snapshot.monitoring
         ? 'Monitoring paused'
         : !_live
@@ -112,20 +120,21 @@ class NetworkMap extends StatelessWidget {
                         child: Text('No targets available yet.',
                             style: TextStyle(color: Color(0xFF9FB4A6))),
                       ),
-                    if (snapshot.targets.length > 4)
-                      _MoreTargets(snapshot.targets.length - 4),
+                    if (snapshot.targets.length > 10)
+                      _MoreTargets(snapshot.targets.length - 10),
                   ],
                 ),
               );
             }
             return SizedBox(
-              height: 286,
+              height: mapHeight,
               child: Stack(
                 children: [
                   Positioned.fill(
                     child: CustomPaint(
                       painter: _MapLines(
                         colors: targets.map(_statusColor).toList(),
+                        alignments: alignments,
                       ),
                     ),
                   ),
@@ -159,7 +168,7 @@ class NetworkMap extends StatelessWidget {
                   ),
                   for (var i = 0; i < targets.length; i++)
                     Align(
-                      alignment: _MapLines.alignments[i],
+                      alignment: alignments[i],
                       child: _MapNode(
                         target: targets[i],
                         color: _statusColor(targets[i]),
@@ -172,15 +181,19 @@ class NetworkMap extends StatelessWidget {
                       child: Text('No targets available yet.',
                           style: TextStyle(color: Color(0xFF9FB4A6))),
                     ),
-                  if (snapshot.targets.length > 4)
-                    Align(
-                      alignment: const Alignment(0, .95),
-                      child: _MoreTargets(snapshot.targets.length - 4),
-                    ),
                 ],
               ),
             );
           }),
+          if (snapshot.targets.length > 10)
+            LayoutBuilder(builder: (context, constraints) {
+              if (constraints.maxWidth < 700) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Center(
+                    child: _MoreTargets(snapshot.targets.length - 10)),
+              );
+            }),
           Container(
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
             decoration: const BoxDecoration(
@@ -209,15 +222,10 @@ class NetworkMap extends StatelessWidget {
 }
 
 class _MapLines extends CustomPainter {
-  _MapLines({required this.colors});
+  _MapLines({required this.colors, required this.alignments});
 
   final List<Color> colors;
-  static const alignments = [
-    Alignment(-.77, -.53),
-    Alignment(.77, -.53),
-    Alignment(-.77, .58),
-    Alignment(.77, .58),
-  ];
+  final List<Alignment> alignments;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -243,9 +251,15 @@ class _MapLines extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MapLines oldDelegate) {
-    if (colors.length != oldDelegate.colors.length) return true;
+    if (colors.length != oldDelegate.colors.length ||
+        alignments.length != oldDelegate.alignments.length) {
+      return true;
+    }
     for (var i = 0; i < colors.length; i++) {
-      if (colors[i] != oldDelegate.colors[i]) return true;
+      if (colors[i] != oldDelegate.colors[i] ||
+          alignments[i] != oldDelegate.alignments[i]) {
+        return true;
+      }
     }
     return false;
   }
