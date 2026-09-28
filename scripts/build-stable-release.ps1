@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $false)]
-    [string]$Version = "5.0.2"
+    [string]$Version = "5.1.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -79,7 +79,8 @@ Compress-Archive -Path (Join-Path $releaseDir "*") -DestinationPath $portable -C
 
 $innoCandidates = @(
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-    "C:\Program Files\Inno Setup 6\ISCC.exe"
+    "C:\Program Files\Inno Setup 6\ISCC.exe",
+    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
 )
 $iscc = $innoCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) {

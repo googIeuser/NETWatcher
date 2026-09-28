@@ -1,6 +1,6 @@
-; NetWatcher 4 stable installer
+; NetWatcher stable installer
 #ifndef MyAppVersion
-  #define MyAppVersion "5.0.2"
+  #define MyAppVersion "5.1.0"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\flutter_app\build\windows\x64\runner\Release"
@@ -13,7 +13,7 @@
 #define MyAppPublisher "NetWatcher Contributors"
 #define MyAppExeName "netwatcher.exe"
 #define MyAppIconName "NetWatcher_" + MyAppVersion + ".ico"
-#define MyAppUserModelId "com.netwatcher.NetWatcher"
+#define MyAppUserModelId "NetWatcher"
 
 [Setup]
 AppId={{E95B6876-8D42-4F38-90AD-2E5EC83A8C16}
@@ -55,10 +55,12 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 [InstallDelete]
 Type: files; Name: "{app}\netwatcher.exe"
 Type: files; Name: "{autoprograms}\NetWatcher.lnk"
+Type: files; Name: "{userprograms}\NetWatcher.lnk"
 Type: files; Name: "{autodesktop}\NetWatcher.lnk"
 
 [Icons]
 Name: "{autoprograms}\NetWatcher"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconName}"; AppUserModelID: "{#MyAppUserModelId}"
+Name: "{userprograms}\NetWatcher"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconName}"; AppUserModelID: "{#MyAppUserModelId}"
 Name: "{autodesktop}\NetWatcher"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconName}"; AppUserModelID: "{#MyAppUserModelId}"; Tasks: desktopicon
 
 [Run]

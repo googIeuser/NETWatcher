@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'models.dart';
-import 'theme.dart';
+import 'network_map.dart';
 import 'widgets.dart';
 
 class ConsoleDashboardPage extends StatelessWidget {
@@ -21,15 +21,15 @@ class ConsoleDashboardPage extends StatelessWidget {
           final heading = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Eyebrow('CONTROL DESK  /  01'),
+              const _Eyebrow('OVERVIEW  /  NETWORK'),
               const SizedBox(height: 6),
-              Text('Your network, at a glance.',
+              Text('Your network, mapped.',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                         letterSpacing: -.7,
                       )),
               const SizedBox(height: 4),
-              Text('Live signal, history and endpoints in one view.',
+              Text('Every connection in view, as it happens.',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   )),
@@ -59,7 +59,7 @@ class ConsoleDashboardPage extends StatelessWidget {
           );
         }),
         const SizedBox(height: 20),
-        _SignalHero(snapshot: snapshot, live: live),
+        NetworkMap(snapshot: snapshot),
         const SizedBox(height: 13),
         LayoutBuilder(builder: (context, constraints) {
           final columns = constraints.maxWidth >= 850 ? 4 : 2;
@@ -253,103 +253,6 @@ class _Eyebrow extends StatelessWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
       );
-}
-
-class _SignalHero extends StatelessWidget {
-  const _SignalHero({required this.snapshot, required this.live});
-  final NetworkSnapshot snapshot;
-  final bool live;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = !snapshot.monitoring
-        ? 'Monitoring paused'
-        : !live
-            ? 'Checking connection'
-            : snapshot.connectionLabel;
-    final detail = !snapshot.monitoring
-        ? 'Start monitoring to begin collecting connection data.'
-        : !live
-            ? 'Waiting for the first measurements.'
-            : 'Live measurements are arriving from your targets.';
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
-      decoration: BoxDecoration(
-        color: NetWatcherTheme.ink,
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: const Color(0xFF41664B)),
-      ),
-      child: LayoutBuilder(builder: (context, constraints) {
-        final copy = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('LIVE SIGNAL   •   NETWORK HEALTH',
-                style: TextStyle(
-                  color: NetWatcherTheme.signal,
-                  fontFamily: 'Consolas',
-                  fontSize: 11,
-                  letterSpacing: 1.6,
-                  fontWeight: FontWeight.w700,
-                )),
-            const SizedBox(height: 20),
-            Text(status,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -.5,
-                )),
-            const SizedBox(height: 6),
-            Text(detail, style: const TextStyle(color: Color(0xFFC6D3C4))),
-          ],
-        );
-        final score = Container(
-          key: live ? null : const ValueKey<String>('dashboard-empty-state'),
-          constraints: const BoxConstraints(minWidth: 130),
-          padding: const EdgeInsets.only(left: 18),
-          decoration: const BoxDecoration(
-            border: Border(left: BorderSide(color: Color(0xFF41664B))),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('QUALITY INDEX',
-                  style: TextStyle(
-                    color: Color(0xFFB7C9B6),
-                    fontFamily: 'Consolas',
-                    fontSize: 10,
-                    letterSpacing: 1.4,
-                  )),
-              const SizedBox(height: 3),
-              Text(live ? '${snapshot.qualityScore}' : '—',
-                  style: const TextStyle(
-                    color: NetWatcherTheme.signal,
-                    fontFamily: 'Consolas',
-                    fontSize: 43,
-                    height: 1.1,
-                    fontWeight: FontWeight.bold,
-                  )),
-              Text(live ? '/ 100' : 'NO LIVE DATA',
-                  style: const TextStyle(
-                    color: Color(0xFFB7C9B6),
-                    fontFamily: 'Consolas',
-                    fontSize: 11,
-                  )),
-            ],
-          ),
-        );
-        if (constraints.maxWidth < 570) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [copy, const SizedBox(height: 22), score],
-          );
-        }
-        return Row(
-          children: [Expanded(child: copy), const SizedBox(width: 18), score],
-        );
-      }),
-    );
-  }
 }
 
 class _MetricCell extends StatelessWidget {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.1.0 - 2026-09-28
+
+- Introduce a live network map that shows monitored endpoints and their connection states, with a compact list at smaller window sizes.
+- Replace the horizontal tabs with a persistent icon navigation rail.
+- Adopt a matching topology icon in the app, tray, Windows executable and installer.
+- Align Windows shortcut identity with notifications and refresh the per-user shortcut icon during installation.
+
 ## 5.0.2 - 2026-09-28
 
 - Replace the legacy blue pulse icon with a lime-and-ink mark that matches the new control-desk interface.
