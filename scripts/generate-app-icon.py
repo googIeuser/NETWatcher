@@ -10,8 +10,6 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "flutter_app" / "assets"
-INK = (23, 40, 33, 255)
-SIGNAL = (217, 244, 106, 255)
 SIZE = 1024
 
 
@@ -19,13 +17,25 @@ def draw_icon() -> Image.Image:
     image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
 
-    # The bright control-desk tile keeps the mark recognizable at 16 px.
-    draw.rounded_rectangle((40, 40, 984, 984), radius=184, fill=SIGNAL)
-
-    # A compact, geometric N with overlapping joins instead of font glyphs.
-    draw.rectangle((244, 228, 370, 796), fill=INK)
-    draw.polygon(((344, 228), (474, 228), (680, 796), (550, 796)), fill=INK)
-    draw.rectangle((654, 228, 780, 796), fill=INK)
+    # The four endpoints and central node mirror the network-map dashboard.
+    draw.rounded_rectangle((34, 34, 990, 990), radius=218, fill="#F0F0E5")
+    links = [
+        ((280, 342), (512, 506)),
+        ((744, 310), (512, 506)),
+        ((270, 710), (512, 506)),
+        ((750, 718), (512, 506)),
+    ]
+    for start, end in links:
+        draw.line((start, end), fill="#297A69", width=72)
+    for x, y in ((280, 342), (744, 310), (270, 710), (750, 718)):
+        draw.ellipse((x - 85, y - 85, x + 85, y + 85), fill="#172821")
+        draw.ellipse((x - 27, y - 27, x + 27, y + 27), fill="#D9F46A")
+    draw.ellipse(
+        (383, 377, 641, 635),
+        fill="#D9F46A",
+        outline="#172821",
+        width=48,
+    )
     return image
 
 

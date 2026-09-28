@@ -26,6 +26,7 @@ void main() {
   testWidgets('dashboard has no overflow at common Windows sizes',
       (tester) async {
     for (final size in const [
+      Size(760, 560),
       Size(800, 600),
       Size(1024, 768),
       Size(1280, 720),
@@ -55,7 +56,7 @@ void main() {
     await tester.binding.setSurfaceSize(null);
   });
 
-  testWidgets('v5 top navigation opens every screen at desktop sizes',
+  testWidgets('side navigation opens every screen at desktop sizes',
       (tester) async {
     for (final size in const [Size(800, 600), Size(1246, 752)]) {
       await tester.binding.setSurfaceSize(size);
