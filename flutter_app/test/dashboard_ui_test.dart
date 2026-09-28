@@ -83,6 +83,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('sidebar has no hover or selected background but keeps labels',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1024, 768));
+    final state = await AppState.create(
+      service: MockCoreService(),
+      pollSnapshots: false,
+      manageWindowsStartup: false,
+    );
+    addTearDown(() async {
+      state.dispose();
+      await tester.binding.setSurfaceSize(null);
+    });
+    await tester.pumpWidget(NetWatcherApp(state: state));
+    await tester.pumpAndSettle();
+
+    final selected = find.byKey(const ValueKey<String>('nav-0'));
+    final tile = tester.widget<Container>(
+      find.descendant(of: selected, matching: find.byType(Container)).first,
+    );
+    expect((tile.decoration as BoxDecoration?)?.color, Colors.transparent);
+    final ink = tester.widget<InkWell>(
+      find.descendant(of: selected, matching: find.byType(InkWell)).first,
+    );
+    expect(
+        ink.overlayColor?.resolve({WidgetState.hovered}), Colors.transparent);
+    expect(find.descendant(of: selected, matching: find.byType(Tooltip)),
+        findsOneWidget);
+  });
+
   testWidgets('four dashboard metrics share one row on desktop',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1260, 760));

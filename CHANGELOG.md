@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.1.1 - 2026-09-28
+
+- Scale the latency chart to the measured interval inside the selected history range, so early samples remain readable.
+- Limit the chart overview to four series and let users choose any other measured target.
+- Keep the dashboard target summary compact and link to the full targets page.
+- Remove sidebar icon backgrounds on selection and hover while preserving tooltips and keyboard focus indication.
+- Prevent long target names from overflowing narrow chart legends.
+
 ## 5.1.0 - 2026-09-28
 
 - Introduce a live network map that shows monitored endpoints and their connection states, with a compact list at smaller window sizes.
