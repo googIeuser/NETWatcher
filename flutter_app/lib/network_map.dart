@@ -24,13 +24,13 @@ class NetworkMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final targets = snapshot.targets.take(10).toList(growable: false);
     final rows = (targets.length + 1) ~/ 2;
-    final mapHeight = math.max(286.0, rows * 98.0 + 20);
-    final alignments = List<Alignment>.generate(targets.length, (index) {
-      final extent = rows <= 2 ? .56 : 1 - 100 / mapHeight;
-      final y =
-          rows <= 1 ? 0.0 : -extent + 2 * extent * (index ~/ 2) / (rows - 1);
-      return Alignment(index.isEven ? -.77 : .77, y);
-    });
+    const rowPitch = 112.0;
+    const nodeHeight = 92.0;
+    final mapHeight = math.max(286.0, rows * rowPitch + 24);
+    final firstTop =
+        (mapHeight - nodeHeight - math.max(0, rows - 1) * rowPitch) / 2;
+    final nodeTops = List<double>.generate(
+        targets.length, (index) => firstTop + (index ~/ 2) * rowPitch);
     final status = !snapshot.monitoring
         ? 'Monitoring paused'
         : !_live
@@ -134,7 +134,7 @@ class NetworkMap extends StatelessWidget {
                     child: CustomPaint(
                       painter: _MapLines(
                         colors: targets.map(_statusColor).toList(),
-                        alignments: alignments,
+                        nodeTops: nodeTops,
                       ),
                     ),
                   ),
@@ -167,12 +167,17 @@ class NetworkMap extends StatelessWidget {
                     ),
                   ),
                   for (var i = 0; i < targets.length; i++)
-                    Align(
-                      alignment: alignments[i],
-                      child: _MapNode(
-                        target: targets[i],
-                        color: _statusColor(targets[i]),
-                        live: _live,
+                    Positioned(
+                      top: nodeTops[i],
+                      left: 0,
+                      right: 0,
+                      child: Align(
+                        alignment: Alignment(i.isEven ? -.77 : .77, 0),
+                        child: _MapNode(
+                          target: targets[i],
+                          color: _statusColor(targets[i]),
+                          live: _live,
+                        ),
                       ),
                     ),
                   if (targets.isEmpty)
@@ -190,8 +195,8 @@ class NetworkMap extends StatelessWidget {
               if (constraints.maxWidth < 700) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
-                child: Center(
-                    child: _MoreTargets(snapshot.targets.length - 10)),
+                child:
+                    Center(child: _MoreTargets(snapshot.targets.length - 10)),
               );
             }),
           Container(
@@ -222,19 +227,18 @@ class NetworkMap extends StatelessWidget {
 }
 
 class _MapLines extends CustomPainter {
-  _MapLines({required this.colors, required this.alignments});
+  _MapLines({required this.colors, required this.nodeTops});
 
   final List<Color> colors;
-  final List<Alignment> alignments;
+  final List<double> nodeTops;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     for (var i = 0; i < colors.length; i++) {
-      final alignment = alignments[i];
       final destination = Offset(
-        size.width / 2 + alignment.x * (size.width - 154) / 2,
-        size.height / 2 + alignment.y * (size.height - 85) / 2 - 20,
+        size.width / 2 + (i.isEven ? -.77 : .77) * (size.width - 154) / 2,
+        nodeTops[i] + 22,
       );
       final direction = destination - center;
       final length = direction.distance;
@@ -252,12 +256,12 @@ class _MapLines extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MapLines oldDelegate) {
     if (colors.length != oldDelegate.colors.length ||
-        alignments.length != oldDelegate.alignments.length) {
+        nodeTops.length != oldDelegate.nodeTops.length) {
       return true;
     }
     for (var i = 0; i < colors.length; i++) {
       if (colors[i] != oldDelegate.colors[i] ||
-          alignments[i] != oldDelegate.alignments[i]) {
+          nodeTops[i] != oldDelegate.nodeTops[i]) {
         return true;
       }
     }
