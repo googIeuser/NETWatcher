@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 import 'motion.dart';
+import 'glass.dart';
 
 class Panel extends StatelessWidget {
   const Panel({
@@ -266,6 +267,7 @@ class LatencyChart extends StatefulWidget {
 
 class _LatencyChartState extends State<LatencyChart> {
   String? selectedTargetId;
+  final MenuController targetMenuController = MenuController();
 
   String _legendValue(TargetStatus target) {
     if (target.state == 'offline' || target.latency <= 0) {
@@ -411,46 +413,138 @@ class _LatencyChartState extends State<LatencyChart> {
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
-              child: PopupMenuButton<String>(
-                key: const ValueKey<String>('chart-target-filter'),
-                tooltip: 'Choose chart target',
-                onSelected: (value) => setState(() {
-                  selectedTargetId = value.isEmpty ? null : value;
-                }),
-                itemBuilder: (context) => [
-                  const PopupMenuItem<String>(
-                    value: '',
-                    child: Text('First 4 targets'),
-                  ),
-                  for (final target in allVisibleTargets)
-                    PopupMenuItem<String>(
-                      value: target.target.id,
-                      child: Text(target.target.name,
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+              child: MenuAnchor(
+                controller: targetMenuController,
+                style: const MenuStyle(
+                  backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+                  shadowColor: WidgetStatePropertyAll(Colors.transparent),
+                  elevation: WidgetStatePropertyAll(0),
+                  padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                ),
+                alignmentOffset: const Offset(-120, 6),
+                animated: true,
+                menuChildren: [
+                  GlassSurface(
+                    key: const ValueKey<String>('glass-target-menu'),
+                    child: SizedBox(
+                      width: 248,
+                      height: math.min(
+                          320.0, (allVisibleTargets.length + 1) * 42.0),
+                      child: ListView.builder(
+                        primary: false,
+                        padding: const EdgeInsets.all(6),
+                        itemCount: allVisibleTargets.length + 1,
+                        itemBuilder: (context, index) {
+                          final target =
+                              index == 0 ? null : allVisibleTargets[index - 1];
+                          final id = target?.target.id;
+                          final active =
+                              showingOne ? selectedTargetId == id : index == 0;
+                          return _GlassMenuOption(
+                            label: target?.target.name ?? 'First 4 targets',
+                            selected: active,
+                            onTap: () {
+                              targetMenuController.close();
+                              setState(() => selectedTargetId = id);
+                            },
+                          );
+                        },
+                      ),
                     ),
+                  ),
                 ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.tune_rounded, size: 16, color: scheme.primary),
-                      const SizedBox(width: 7),
-                      Text(
-                        showingOne ? 'Change target' : 'Choose a target',
-                        style:
-                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                builder: (context, controller, _) => Tooltip(
+                  message: 'Choose chart target',
+                  child: InkWell(
+                    key: const ValueKey<String>('chart-target-filter'),
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => controller.isOpen
+                        ? controller.close()
+                        : controller.open(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.tune_rounded,
+                              size: 16, color: scheme.primary),
+                          const SizedBox(width: 7),
+                          Text(
+                            showingOne ? 'Change target' : 'Choose a target',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
                                   color: scheme.primary,
                                   fontWeight: FontWeight.w700,
                                 ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _GlassMenuOption extends StatefulWidget {
+  const _GlassMenuOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_GlassMenuOption> createState() => _GlassMenuOptionState();
+}
+
+class _GlassMenuOptionState extends State<_GlassMenuOption> {
+  bool hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return InkWell(
+      borderRadius: BorderRadius.circular(11),
+      onHover: (value) => setState(() => hovered = value),
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: NetWatcherMotion.fast,
+        curve: NetWatcherMotion.curve,
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: accent.withValues(
+              alpha: widget.selected
+                  ? .17
+                  : hovered
+                      ? .10
+                      : 0),
+          borderRadius: BorderRadius.circular(11),
+          border:
+              Border.all(color: accent.withValues(alpha: hovered ? .28 : 0)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(widget.label,
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            if (widget.selected)
+              Icon(Icons.check_rounded, size: 17, color: accent),
+          ],
+        ),
       ),
     );
   }
