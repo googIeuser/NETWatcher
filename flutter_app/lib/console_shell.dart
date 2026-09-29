@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'console_dashboard.dart';
-import 'glass.dart';
 import 'motion.dart';
 import 'pages.dart';
 import 'restored_pages.dart';
@@ -59,146 +58,139 @@ class _NetworkConsoleShellState extends State<NetworkConsoleShell> {
             : const Color(0xFF72B984);
 
     return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(child: GlassAmbient()),
-          SafeArea(
-            child: Row(
-              children: [
-                Container(
-                  width: 78,
-                  decoration: const BoxDecoration(
-                    color: NetWatcherTheme.ink,
-                    border: Border(right: BorderSide(color: Color(0xFF385348))),
+      body: SafeArea(
+        child: Row(
+          children: [
+            Container(
+              width: 78,
+              decoration: const BoxDecoration(
+                color: NetWatcherTheme.ink,
+                border: Border(right: BorderSide(color: Color(0xFF385348))),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
+                    child: Image.asset(
+                      'assets/app_icon.png',
+                      width: 48,
+                      height: 48,
+                      filterQuality: FilterQuality.high,
+                      semanticLabel: 'NetWatcher logo',
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
-                        child: Image.asset(
-                          'assets/app_icon.png',
-                          width: 48,
-                          height: 48,
-                          filterQuality: FilterQuality.high,
-                          semanticLabel: 'NetWatcher logo',
-                        ),
-                      ),
-                      Container(height: 1, color: const Color(0xFF385348)),
-                      const SizedBox(height: 16),
-                      for (var i = 0; i < 5; i++)
-                        _RailItem(
-                          key: ValueKey<String>('nav-$i'),
-                          icon: sections[i].$1,
-                          label: sections[i].$2,
-                          selected: selected == i,
-                          onTap: () => setState(() => selected = i),
-                        ),
-                      const Spacer(),
-                      _RailItem(
-                        key: const ValueKey<String>('nav-5'),
-                        icon: sections[5].$1,
-                        label: sections[5].$2,
-                        selected: selected == 5,
-                        onTap: () => setState(() => selected = 5),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                  Container(height: 1, color: const Color(0xFF385348)),
+                  const SizedBox(height: 16),
+                  for (var i = 0; i < 5; i++)
+                    _RailItem(
+                      key: ValueKey<String>('nav-$i'),
+                      icon: sections[i].$1,
+                      label: sections[i].$2,
+                      selected: selected == i,
+                      onTap: () => setState(() => selected = i),
+                    ),
+                  const Spacer(),
+                  _RailItem(
+                    key: const ValueKey<String>('nav-5'),
+                    icon: sections[5].$1,
+                    label: sections[5].$2,
+                    selected: selected == 5,
+                    onTap: () => setState(() => selected = 5),
                   ),
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      GlassSurface(
-                        radius: 0,
-                        blur: 16,
-                        child: SizedBox(
-                          height: 70,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Row(
-                              children: [
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('NETWATCHER',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 1.4,
-                                            )),
-                                    Text('NETWORK CONTROL DESK',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelSmall
-                                            ?.copyWith(
-                                              color: scheme.onSurfaceVariant,
-                                              letterSpacing: 1.3,
-                                            )),
-                                  ],
-                                ),
-                                const Spacer(),
-                                GlassSurface(
-                                  radius: 20,
-                                  blur: 10,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 11, vertical: 7),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 7,
-                                        height: 7,
-                                        decoration: BoxDecoration(
-                                            color: stateColor,
-                                            shape: BoxShape.circle),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(stateLabel,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelSmall
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w800,
-                                                letterSpacing: 1.1,
-                                              )),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Text('v${snapshot.version}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                          color: scheme.onSurfaceVariant,
-                                          fontFamily: 'Consolas',
-                                        )),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (widget.state.error != null)
-                        MaterialBanner(
-                          content: Text(widget.state.error!),
-                          actions: [
-                            TextButton(
-                              onPressed: widget.state.refreshSnapshot,
-                              child: const Text('Retry'),
-                            ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  Container(
+                    height: 70,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    decoration: BoxDecoration(
+                      color: scheme.surface,
+                      border: Border(bottom: BorderSide(color: scheme.outline)),
+                    ),
+                    child: Row(
+                      children: [
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('NETWATCHER',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.4,
+                                    )),
+                            Text('NETWORK CONTROL DESK',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                      letterSpacing: 1.3,
+                                    )),
                           ],
                         ),
-                      Expanded(child: FadeSlideSwitcher(child: _page())),
-                    ],
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 11, vertical: 7),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: scheme.outline),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                    color: stateColor, shape: BoxShape.circle),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(stateLabel,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 1.1,
+                                      )),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Text('v${snapshot.version}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                  fontFamily: 'Consolas',
+                                )),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  if (widget.state.error != null)
+                    MaterialBanner(
+                      content: Text(widget.state.error!),
+                      actions: [
+                        TextButton(
+                          onPressed: widget.state.refreshSnapshot,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  Expanded(child: FadeSlideSwitcher(child: _page())),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

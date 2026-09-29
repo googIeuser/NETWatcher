@@ -126,9 +126,6 @@ void main() {
     expect(find.textContaining('Target 59:'), findsNothing);
     await tester.tap(find.byKey(const ValueKey<String>('chart-target-filter')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey<String>('glass-target-menu')),
-        findsOneWidget);
-    expect(find.byType(BackdropFilter), findsWidgets);
     await tester.scrollUntilVisible(
       find.text('Target 59'),
       350,
