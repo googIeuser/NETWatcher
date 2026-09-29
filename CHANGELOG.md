@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.2.0 - 2026-09-29
+
+- Add a clipped glass material with backdrop blur, translucent tint and a soft edge highlight.
+- Apply it to the console header, monitoring status and chart target chooser.
+- Give the target chooser a floating glass menu with animated opening and hover feedback.
+- Add restrained ambient lighting behind the interface, preserving chart and map readability.
+
 ## 5.1.3 - 2026-09-29
 
 - Give every network-map row fixed spacing so endpoint icons, names and addresses do not overlap.
