@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.1.3 - 2026-09-29
+
+- Give every network-map row fixed spacing so endpoint icons, names and addresses do not overlap.
+- Keep connection lines aligned with the repositioned endpoints.
+
 ## 5.1.2 - 2026-09-28
 
 - Show up to ten monitored endpoints on the network map with evenly spaced connections.

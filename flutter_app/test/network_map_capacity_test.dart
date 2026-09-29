@@ -53,4 +53,31 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  for (final count in [5, 10]) {
+    testWidgets('map rows do not overlap with $count paused targets',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1120, 850));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: NetworkMap(
+              snapshot: NetworkSnapshot(
+                targets: List.generate(count, targetAt),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      for (var i = 2; i < count; i += 2) {
+        final gap = tester.getTopLeft(find.text('Target $i')).dy -
+            tester.getTopLeft(find.text('Target ${i - 2}')).dy;
+        expect(gap, greaterThanOrEqualTo(96));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
