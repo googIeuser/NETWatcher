@@ -21,10 +21,13 @@ The test-build mode never creates a tag or GitHub Release.
 
 After the test package is approved:
 
-1. Confirm `RELEASE_NOTES_x.y.z.md` exists and `CHANGELOG.md` is updated.
-2. Open **Actions → NetWatcher Stable Release**.
-3. Select **Run workflow** on `main`.
-4. Choose `stable-release` and enter the version.
-5. The workflow runs tests again, builds the Windows files, creates the version tag and publishes the GitHub Release.
+1. Add the current release notes at `docs/releases/x.y.z.md` and update `CHANGELOG.md`.
+2. Update the Flutter, Rust, installer and documentation versions, then commit and push to `main`.
+3. Create and push the annotated `vx.y.z` tag on that commit using the maintainer's Git identity.
+4. Create a draft GitHub Release for that tag, using `docs/releases/x.y.z.md` as its description.
+5. Open **Actions → NetWatcher Stable Release**, select **Run workflow** on `main`, and choose `stable-release` with the matching version.
+6. The workflow runs tests, builds and verifies the Windows packages, checks the existing tag, uploads assets to the draft and publishes it as the latest stable release.
 
-No personal token, repository secret, manual draft or manual asset upload is required.
+The workflow uses GitHub's built-in token. It requires the maintainer's tag and draft release to exist before publication.
+
+Keep only the current release-note file in the repository. Previous release descriptions remain available in GitHub Releases, and the version history is preserved in `CHANGELOG.md`.

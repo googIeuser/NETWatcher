@@ -100,7 +100,7 @@ jobs:
             throw "Windows packages must be built from the main branch."
           }
 
-          $notes = "RELEASE_NOTES_$version.md"
+          $notes = "docs/releases/$version.md"
           if ($mode -eq "stable-release" -and -not (Test-Path $notes)) {
             throw "Release notes file was not found: $notes"
           }
