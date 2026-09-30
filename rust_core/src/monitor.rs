@@ -70,8 +70,9 @@ impl Engine {
 
         let mut history: HashMap<String, Vec<Sample>> = HashMap::new();
         let mut latest: HashMap<String, Measurement> = HashMap::new();
-        if let Ok(measurements) =
-            store.read_measurements(Utc::now() - chrono::Duration::hours(24))
+        if let Ok(measurements) = store.read_measurements(
+            Utc::now() - chrono::Duration::minutes(config.graph_range_minutes as i64),
+        )
         {
             for measurement in measurements {
                 history
@@ -180,9 +181,44 @@ impl Engine {
 
     pub fn update_config(&self, config: Config) {
         let range_minutes = config.graph_range_minutes;
+        let previous_range = self.config().graph_range_minutes;
+        let older_history = if range_minutes > previous_range {
+            self.store
+                .read_measurements(Utc::now() - chrono::Duration::minutes(range_minutes as i64))
+                .ok()
+        } else {
+            None
+        };
         *self.config.write().expect("config lock poisoned") = config;
 
-        let runtime = self.runtime.lock().expect("runtime lock poisoned");
+        let mut runtime = self.runtime.lock().expect("runtime lock poisoned");
+        let cutoff = (Utc::now() - chrono::Duration::minutes(range_minutes as i64)).to_rfc3339();
+        if let Some(measurements) = older_history {
+            let mut history: HashMap<String, Vec<Sample>> = HashMap::new();
+            for measurement in measurements {
+                history
+                    .entry(measurement.target_id)
+                    .or_default()
+                    .push(Sample {
+                        time: measurement.timestamp,
+                        latency: measurement.latency,
+                        success: measurement.success,
+                    });
+            }
+            for (id, samples) in runtime.history.drain() {
+                history.entry(id).or_default().extend(samples);
+            }
+            for samples in history.values_mut() {
+                samples.sort_by(|a, b| a.time.cmp(&b.time));
+                samples.dedup_by(|a, b| a.time == b.time);
+                samples.retain(|sample| sample.time.as_str() >= cutoff.as_str());
+            }
+            runtime.history = history;
+        } else {
+            for samples in runtime.history.values_mut() {
+                samples.retain(|sample| sample.time.as_str() >= cutoff.as_str());
+            }
+        }
         let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
         for status in &mut snapshot.targets {
             status.history = runtime
@@ -455,7 +491,8 @@ impl Engine {
 
         {
             let mut runtime = self.runtime.lock().expect("runtime lock poisoned");
-            let history_cutoff = Utc::now() - chrono::Duration::hours(24);
+            let history_cutoff =
+                Utc::now() - chrono::Duration::minutes(config.graph_range_minutes as i64);
             let cutoff_str = history_cutoff.to_rfc3339();
 
             for status in &mut statuses {
@@ -552,15 +589,12 @@ impl Drop for Engine {
 fn history_for_range(samples: &[Sample], range_minutes: u32) -> Vec<Sample> {
     let cutoff = Utc::now() - chrono::Duration::minutes(range_minutes as i64);
     let cutoff_str = cutoff.to_rfc3339();
-    let filtered: Vec<Sample> = samples
-        .iter()
-        .filter(|sample| sample.time.as_str() >= cutoff_str.as_str())
-        .cloned()
-        .collect();
+    let first = samples.partition_point(|sample| sample.time.as_str() < cutoff_str.as_str());
+    let filtered = &samples[first..];
 
     const MAX_GRAPH_POINTS: usize = 600;
     if filtered.len() <= MAX_GRAPH_POINTS {
-        return filtered;
+        return filtered.to_vec();
     }
 
     let step = (filtered.len() + MAX_GRAPH_POINTS - 1) / MAX_GRAPH_POINTS;
@@ -719,6 +753,41 @@ mod tests {
         server.join().unwrap();
 
         assert!(result.is_ok(), "HTTP check kept the original client timeout: {result:?}");
+    }
+
+    #[test]
+    fn graph_history_loads_older_samples_only_for_wider_ranges() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = env::temp_dir().join(format!("netwatcher-history-range-{unique}"));
+        let mut engine = Engine::new(Config::default());
+        engine.store = Store::new_at(dir.clone());
+        engine.runtime.lock().unwrap().history.clear();
+
+        let old_time = (Utc::now() - chrono::Duration::minutes(30)).to_rfc3339();
+        let recent_time = (Utc::now() - chrono::Duration::minutes(1)).to_rfc3339();
+        for time in [&old_time, &recent_time] {
+            engine.store.append_measurement(&Measurement {
+                timestamp: time.clone(),
+                target_id: "history-target".into(),
+                target_name: "History target".into(),
+                host: "127.0.0.1".into(),
+                kind: "local".into(),
+                mode: "ping".into(),
+                success: true,
+                latency: 1.0,
+                message: "OK".into(),
+            }).unwrap();
+        }
+
+        let mut config = Config::default();
+        config.graph_range_minutes = 60;
+        engine.update_config(config.clone());
+        assert_eq!(engine.runtime.lock().unwrap().history["history-target"].len(), 2);
+
+        config.graph_range_minutes = 5;
+        engine.update_config(config);
+        assert_eq!(engine.runtime.lock().unwrap().history["history-target"].len(), 1);
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

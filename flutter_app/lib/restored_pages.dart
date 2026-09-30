@@ -60,6 +60,12 @@ class _RestoredSettingsPageState extends State<RestoredSettingsPage> {
                     label: 'Theme',
                     child: DropdownButtonFormField<String>(
                       initialValue: draft.theme,
+                      dropdownColor: Theme.of(context).colorScheme.surface,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontFamily: 'Bahnschrift',
+                        fontSize: 16,
+                      ),
                       items: const [
                         DropdownMenuItem(value: 'dark', child: Text('Dark')),
                         DropdownMenuItem(value: 'light', child: Text('Light')),

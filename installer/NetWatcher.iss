@@ -1,6 +1,6 @@
 ; NetWatcher stable installer
 #ifndef MyAppVersion
-  #define MyAppVersion "5.1.3"
+  #define MyAppVersion "5.1.4"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\flutter_app\build\windows\x64\runner\Release"

@@ -87,19 +87,37 @@ pub fn all_targets(custom: &[String]) -> Vec<Target> {
 fn detect_default_gateway() -> Option<String> {
     #[cfg(windows)]
     {
+        use std::sync::{Mutex, OnceLock};
+        use std::time::{Duration, Instant};
         use std::process::Command;
-        let output = Command::new("route")
-            .args(["print", "-4", "0.0.0.0"])
-            .output()
-            .ok()?;
-        let text = String::from_utf8_lossy(&output.stdout);
-        for line in text.lines() {
-            let columns: Vec<_> = line.split_whitespace().collect();
-            if columns.len() >= 4 && columns[0] == "0.0.0.0" && columns[1] == "0.0.0.0" {
-                return Some(columns[2].to_string());
+
+        static CACHE: OnceLock<Mutex<Option<(Instant, Option<String>)>>> = OnceLock::new();
+        let mut cache = CACHE.get_or_init(|| Mutex::new(None)).lock().ok()?;
+        if let Some((checked_at, gateway)) = cache.as_ref() {
+            if checked_at.elapsed() < Duration::from_secs(30) {
+                return gateway.clone();
             }
         }
+
+        let gateway = Command::new("route")
+            .args(["print", "-4", "0.0.0.0"])
+            .output()
+            .ok()
+            .and_then(|output| {
+                let text = String::from_utf8_lossy(&output.stdout);
+                text.lines().find_map(|line| {
+                    let mut columns = line.split_whitespace();
+                    match (columns.next(), columns.next(), columns.next()) {
+                        (Some("0.0.0.0"), Some("0.0.0.0"), Some(gateway)) =>
+                            Some(gateway.to_owned()),
+                        _ => None,
+                    }
+                })
+            });
+        *cache = Some((Instant::now(), gateway.clone()));
+        return gateway;
     }
+    #[cfg(not(windows))]
     None
 }
 

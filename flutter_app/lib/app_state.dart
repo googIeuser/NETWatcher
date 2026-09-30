@@ -28,6 +28,8 @@ class AppState extends ChangeNotifier {
   final bool _manageWindowsStartup;
   final Future<void> Function(NetworkEvent)? _onOutageEvent;
   Timer? _pollTimer;
+  bool _refreshInProgress = false;
+  DateTime? _lastOutageRefresh;
   NetWatcherConfig config = const NetWatcherConfig();
   NetworkSnapshot snapshot = const NetworkSnapshot();
   List<OutageRecord> outages = const [];
@@ -38,7 +40,6 @@ class AppState extends ChangeNotifier {
   bool reportBusy = false;
   String? reportNotice;
   String? error;
-  int _outagePollTicks = 0;
   bool _shuttingDown = false;
 
   static Future<AppState> create({
@@ -99,12 +100,8 @@ class AppState extends ChangeNotifier {
         await _notifyNewEvents(previousEvents);
       }
       outages = await _service.getOutages(outageRangeDays);
-      if (_pollSnapshots) {
-        _pollTimer = Timer.periodic(
-          const Duration(seconds: 1),
-          (_) => refreshSnapshot(),
-        );
-      }
+      _lastOutageRefresh = DateTime.now();
+      _syncPolling();
       error = startupError;
     } catch (exception) {
       error = exception.toString();
@@ -115,14 +112,15 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> refreshSnapshot() async {
-    if (_shuttingDown) return;
+    if (_shuttingDown || _refreshInProgress) return;
+    _refreshInProgress = true;
     try {
       final previousEvents = snapshot.recentEvents;
       snapshot = await _service.snapshot();
       await _notifyNewEvents(previousEvents);
-      _outagePollTicks++;
-      if (_outagePollTicks >= 5) {
-        _outagePollTicks = 0;
+      if (DateTime.now().difference(_lastOutageRefresh ?? DateTime(0)) >=
+          const Duration(seconds: 30)) {
+        _lastOutageRefresh = DateTime.now();
         await _refreshOutagesSilently();
       }
       error = null;
@@ -130,7 +128,21 @@ class AppState extends ChangeNotifier {
     } catch (exception) {
       error = exception.toString();
       notifyListeners();
+    } finally {
+      _refreshInProgress = false;
+      if (!snapshot.monitoring && _pollTimer != null) _syncPolling();
     }
+  }
+
+  void _syncPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    if (!_pollSnapshots || _shuttingDown || !snapshot.monitoring) return;
+    final intervalMs =
+        (config.intervalSeconds * 1000).round().clamp(1000, 60000);
+    _pollTimer = Timer.periodic(Duration(milliseconds: intervalMs), (_) {
+      if (!_refreshInProgress) unawaited(refreshSnapshot());
+    });
   }
 
   Future<void> _notifyNewEvents(List<NetworkEvent> previousEvents) async {
@@ -202,6 +214,7 @@ class AppState extends ChangeNotifier {
           ? await _service.stopMonitoring()
           : await _service.startMonitoring();
       await _notifyNewEvents(previousEvents);
+      _syncPolling();
       error = null;
     } catch (exception) {
       error = exception.toString();
@@ -215,6 +228,7 @@ class AppState extends ChangeNotifier {
       config = await _service.saveSettings(value);
       snapshot = await _service.snapshot();
       await _notifyNewEvents(previousEvents);
+      _syncPolling();
       if (_manageWindowsStartup) {
         await WindowsStartup.sync(config.startWithWindows);
       }
