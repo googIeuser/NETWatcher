@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.1.4 - 2026-09-30
+
+- Restore the solid interface after the glass experiment.
+- Keep both theme choices readable in the Settings dropdown.
+- Use theme-aware colors for the network map in light and dark modes.
+- Stop idle snapshot polling, follow the monitoring interval when active, and refresh outage history less often.
+- Cache gateway discovery and keep only the selected chart range in live memory.
+
 ## 5.1.3 - 2026-09-29
 
 - Give every network-map row fixed spacing so endpoint icons, names and addresses do not overlap.

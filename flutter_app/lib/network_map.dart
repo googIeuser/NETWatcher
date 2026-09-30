@@ -5,6 +5,54 @@ import 'package:flutter/material.dart';
 import 'models.dart';
 import 'theme.dart';
 
+class _MapPalette {
+  const _MapPalette({
+    required this.background,
+    required this.border,
+    required this.nodeFill,
+    required this.text,
+    required this.muted,
+    required this.inactive,
+    required this.accent,
+    required this.error,
+  });
+
+  final Color background;
+  final Color border;
+  final Color nodeFill;
+  final Color text;
+  final Color muted;
+  final Color inactive;
+  final Color accent;
+  final Color error;
+
+  factory _MapPalette.of(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (scheme.brightness == Brightness.dark) {
+      return const _MapPalette(
+        background: Color(0xFF14221B),
+        border: Color(0xFF365345),
+        nodeFill: Color(0xFF1F352A),
+        text: Color(0xFFDAE4D9),
+        muted: Color(0xFF9FB4A6),
+        inactive: Color(0xFF8DA399),
+        accent: NetWatcherTheme.signal,
+        error: Color(0xFFFF8878),
+      );
+    }
+    return _MapPalette(
+      background: scheme.surface,
+      border: scheme.outline,
+      nodeFill: const Color(0xFFE9EFE6),
+      text: scheme.onSurface,
+      muted: scheme.onSurfaceVariant,
+      inactive: const Color(0xFF75877B),
+      accent: const Color(0xFF58751B),
+      error: scheme.error,
+    );
+  }
+}
+
 /// A compact topology view of the actual endpoints in the current snapshot.
 class NetworkMap extends StatelessWidget {
   const NetworkMap({super.key, required this.snapshot});
@@ -13,15 +61,16 @@ class NetworkMap extends StatelessWidget {
 
   bool get _live => snapshot.monitoring && snapshot.samples > 0;
 
-  Color _statusColor(TargetStatus target) {
-    if (!_live) return const Color(0xFF8DA399);
-    if (target.state == 'online') return NetWatcherTheme.signal;
-    if (target.state == 'offline') return const Color(0xFFFF8878);
-    return const Color(0xFF8DA399);
+  Color _statusColor(TargetStatus target, _MapPalette palette) {
+    if (!_live) return palette.inactive;
+    if (target.state == 'online') return palette.accent;
+    if (target.state == 'offline') return palette.error;
+    return palette.inactive;
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = _MapPalette.of(context);
     final targets = snapshot.targets.take(10).toList(growable: false);
     final rows = (targets.length + 1) ~/ 2;
     const rowPitch = 112.0;
@@ -37,16 +86,16 @@ class NetworkMap extends StatelessWidget {
             ? 'Checking connection'
             : snapshot.connectionLabel;
     final statusColor = !_live
-        ? const Color(0xFFDAE4D9)
+        ? palette.text
         : snapshot.connectionState == 'offline'
-            ? const Color(0xFFFF8878)
-            : NetWatcherTheme.signal;
+            ? palette.error
+            : palette.accent;
     return Container(
       key: _live ? null : const ValueKey<String>('dashboard-empty-state'),
       decoration: BoxDecoration(
-        color: const Color(0xFF14221B),
+        color: palette.background,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF365345)),
+        border: Border.all(color: palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -64,9 +113,9 @@ class NetworkMap extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                const Text('NETWORK MAP',
+                Text('NETWORK MAP',
                     style: TextStyle(
-                      color: NetWatcherTheme.signal,
+                      color: palette.accent,
                       fontFamily: 'Consolas',
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -74,8 +123,8 @@ class NetworkMap extends StatelessWidget {
                     )),
                 const Spacer(),
                 Text('${snapshot.targets.length} TARGETS',
-                    style: const TextStyle(
-                      color: Color(0xFF9FB4A6),
+                    style: TextStyle(
+                      color: palette.muted,
                       fontFamily: 'Consolas',
                       fontSize: 11,
                       letterSpacing: 1.2,
@@ -99,7 +148,7 @@ class NetworkMap extends StatelessWidget {
               !_live
                   ? 'Start monitoring to see live connection paths.'
                   : 'Live paths from this computer to each monitored target.',
-              style: const TextStyle(color: Color(0xFF9FB4A6)),
+              style: TextStyle(color: palette.muted),
             ),
           ),
           LayoutBuilder(builder: (context, constraints) {
@@ -111,14 +160,14 @@ class NetworkMap extends StatelessWidget {
                     for (final target in targets)
                       _MapTargetRow(
                         target: target,
-                        color: _statusColor(target),
+                        color: _statusColor(target, palette),
                         live: _live,
                       ),
                     if (targets.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 18),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
                         child: Text('No targets available yet.',
-                            style: TextStyle(color: Color(0xFF9FB4A6))),
+                            style: TextStyle(color: palette.muted)),
                       ),
                     if (snapshot.targets.length > 10)
                       _MoreTargets(snapshot.targets.length - 10),
@@ -133,7 +182,9 @@ class NetworkMap extends StatelessWidget {
                   Positioned.fill(
                     child: CustomPaint(
                       painter: _MapLines(
-                        colors: targets.map(_statusColor).toList(),
+                        colors: targets
+                            .map((target) => _statusColor(target, palette))
+                            .toList(),
                         nodeTops: nodeTops,
                       ),
                     ),
@@ -145,8 +196,7 @@ class NetworkMap extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: NetWatcherTheme.signal,
                         shape: BoxShape.circle,
-                        border: Border.all(
-                            color: const Color(0xFF14221B), width: 6),
+                        border: Border.all(color: palette.background, width: 6),
                       ),
                       child: const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -175,16 +225,16 @@ class NetworkMap extends StatelessWidget {
                         alignment: Alignment(i.isEven ? -.77 : .77, 0),
                         child: _MapNode(
                           target: targets[i],
-                          color: _statusColor(targets[i]),
+                          color: _statusColor(targets[i], palette),
                           live: _live,
                         ),
                       ),
                     ),
                   if (targets.isEmpty)
-                    const Align(
-                      alignment: Alignment(0, .84),
+                    Align(
+                      alignment: const Alignment(0, .84),
                       child: Text('No targets available yet.',
-                          style: TextStyle(color: Color(0xFF9FB4A6))),
+                          style: TextStyle(color: palette.muted)),
                     ),
                 ],
               ),
@@ -201,8 +251,8 @@ class NetworkMap extends StatelessWidget {
             }),
           Container(
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Color(0xFF365345))),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: palette.border)),
             ),
             child: Wrap(
               spacing: 24,
@@ -278,42 +328,45 @@ class _MapNode extends StatelessWidget {
   final bool live;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 154,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1F352A),
-                shape: BoxShape.circle,
-                border: Border.all(color: color, width: 2),
-              ),
-              child: Icon(Icons.circle, size: 13, color: color),
+  Widget build(BuildContext context) {
+    final palette = _MapPalette.of(context);
+    return SizedBox(
+      width: 154,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: palette.nodeFill,
+              shape: BoxShape.circle,
+              border: Border.all(color: color, width: 2),
             ),
-            const SizedBox(height: 6),
-            Text(target.target.name,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w700)),
-            Text(
-              live && target.state == 'online'
-                  ? '${target.latency.toStringAsFixed(1)} ms'
-                  : live && target.state == 'offline'
-                      ? 'OFFLINE'
-                      : target.target.host,
+            child: Icon(Icons.circle, size: 13, color: color),
+          ),
+          const SizedBox(height: 6),
+          Text(target.target.name,
+              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style:
-                  TextStyle(color: color, fontFamily: 'Consolas', fontSize: 11),
-            ),
-          ],
-        ),
-      );
+                  TextStyle(color: palette.text, fontWeight: FontWeight.w700)),
+          Text(
+            live && target.state == 'online'
+                ? '${target.latency.toStringAsFixed(1)} ms'
+                : live && target.state == 'offline'
+                    ? 'OFFLINE'
+                    : target.target.host,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style:
+                TextStyle(color: color, fontFamily: 'Consolas', fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MapTargetRow extends StatelessWidget {
@@ -324,32 +377,35 @@ class _MapTargetRow extends StatelessWidget {
   final bool live;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFF365345))),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.radio_button_checked, size: 16, color: color),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(target.target.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white)),
-            ),
-            Text(
-              live && target.state == 'online'
-                  ? '${target.latency.toStringAsFixed(1)} ms'
-                  : live && target.state == 'offline'
-                      ? 'OFFLINE'
-                      : '—',
-              style: TextStyle(color: color, fontFamily: 'Consolas'),
-            ),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final palette = _MapPalette.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: palette.border)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.radio_button_checked, size: 16, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(target.target.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.text)),
+          ),
+          Text(
+            live && target.state == 'online'
+                ? '${target.latency.toStringAsFixed(1)} ms'
+                : live && target.state == 'offline'
+                    ? 'OFFLINE'
+                    : '—',
+            style: TextStyle(color: color, fontFamily: 'Consolas'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MapDatum extends StatelessWidget {
@@ -358,17 +414,18 @@ class _MapDatum extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => Text.rich(TextSpan(children: [
-        TextSpan(
-            text: '$label  ',
-            style: const TextStyle(color: Color(0xFF9FB4A6), fontSize: 11)),
-        TextSpan(
-            text: value,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold)),
-      ]));
+  Widget build(BuildContext context) {
+    final palette = _MapPalette.of(context);
+    return Text.rich(TextSpan(children: [
+      TextSpan(
+          text: '$label  ',
+          style: TextStyle(color: palette.muted, fontSize: 11)),
+      TextSpan(
+          text: value,
+          style: TextStyle(
+              color: palette.text, fontSize: 13, fontWeight: FontWeight.bold)),
+    ]));
+  }
 }
 
 class _MoreTargets extends StatelessWidget {
@@ -377,5 +434,5 @@ class _MoreTargets extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text('+$count more targets below',
-      style: const TextStyle(color: Color(0xFF9FB4A6), fontSize: 11));
+      style: TextStyle(color: _MapPalette.of(context).muted, fontSize: 11));
 }
