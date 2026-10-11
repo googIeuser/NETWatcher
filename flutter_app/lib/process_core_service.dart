@@ -10,6 +10,7 @@ class ProcessCoreService implements CoreService {
   StreamSubscription<String>? _stdoutSubscription;
   StreamSubscription<String>? _stderrSubscription;
   final List<Completer<Map<String, dynamic>>> _waiting = [];
+  final SnapshotHistoryCache _history = SnapshotHistoryCache();
 
   static Future<ProcessCoreService?> tryCreate() async {
     final path = _findCoreExecutable();
@@ -90,15 +91,16 @@ class ProcessCoreService implements CoreService {
 
   @override
   Future<NetworkSnapshot> startMonitoring() async =>
-      NetworkSnapshot.fromJson(_data(await _request('start')));
+      _history.apply(_data(await _request('start')));
 
   @override
   Future<NetworkSnapshot> stopMonitoring() async =>
-      NetworkSnapshot.fromJson(_data(await _request('stop')));
+      _history.apply(_data(await _request('stop')));
 
   @override
-  Future<NetworkSnapshot> snapshot() async =>
-      NetworkSnapshot.fromJson(_data(await _request('snapshot')));
+  Future<NetworkSnapshot> snapshot() async => _history.apply(
+        _data(await _request('snapshot', _history.requestFields())),
+      );
 
   @override
   Future<List<OutageRecord>> getOutages(int days) async {
@@ -163,5 +165,62 @@ class ProcessCoreService implements CoreService {
     await _stdoutSubscription?.cancel();
     await _stderrSubscription?.cancel();
     _process = null;
+  }
+}
+
+/// Keeps chart history between snapshot requests, so the core only has to send
+/// the chart buckets that are new since the previous request.
+class SnapshotHistoryCache {
+  int? _epoch;
+  final Map<String, List<LatencySample>> _history = {};
+
+  Map<String, dynamic> requestFields() {
+    final epoch = _epoch;
+    int? newest;
+    for (final samples in _history.values) {
+      if (samples.isEmpty) continue;
+      final time = samples.last.time.millisecondsSinceEpoch;
+      if (newest == null || time > newest) newest = time;
+    }
+    if (epoch == null || newest == null) return const {};
+    return {'history_after': newest, 'history_epoch': epoch};
+  }
+
+  NetworkSnapshot apply(Map<String, dynamic> data) {
+    final snapshot = NetworkSnapshot.fromJson(data);
+    final epoch = (data['historyEpoch'] as num?)?.toInt();
+    final isDelta =
+        data['historyDelta'] == true && epoch != null && epoch == _epoch;
+    final bucketMs =
+        ((data['historyBucketSeconds'] as num?)?.toInt() ?? 1).clamp(1, 86400) *
+            1000;
+    final cutoffMs = (data['historyCutoffMs'] as num?)?.toInt() ?? 0;
+    int bucket(LatencySample sample) =>
+        sample.time.millisecondsSinceEpoch ~/ bucketMs;
+
+    final merged = <String, List<LatencySample>>{};
+    final targets = snapshot.targets.map((status) {
+      var history = status.history;
+      if (isDelta) {
+        final cached = _history[status.target.id] ?? const <LatencySample>[];
+        final firstBucket =
+            history.isEmpty ? null : bucket(history.first);
+        history = [
+          for (final sample in cached)
+            if (sample.time.millisecondsSinceEpoch >= cutoffMs &&
+                (firstBucket == null || bucket(sample) < firstBucket))
+              sample,
+          ...history,
+        ];
+      }
+      merged[status.target.id] = history;
+      return isDelta ? status.copyWith(history: history) : status;
+    }).toList(growable: false);
+
+    _epoch = epoch;
+    _history
+      ..clear()
+      ..addAll(merged);
+    return isDelta ? snapshot.copyWith(targets: targets) : snapshot;
   }
 }

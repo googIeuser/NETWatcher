@@ -45,6 +45,10 @@ impl Store {
     }
 
     fn append_csv(&self, path: PathBuf, header: &[&str], row: &[String]) -> Result<()> {
+        self.append_csv_rows(path, header, &[row.to_vec()])
+    }
+
+    fn append_csv_rows(&self, path: PathBuf, header: &[&str], rows: &[Vec<String>]) -> Result<()> {
         let _guard = self.lock.lock().expect("storage lock poisoned");
         fs::create_dir_all(&self.dir)?;
         let needs_header = fs::metadata(&path).map(|meta| meta.len() == 0).unwrap_or(true);
@@ -53,32 +57,26 @@ impl Store {
         if needs_header {
             writer.write_record(header)?;
         }
-        writer.write_record(row)?;
+        for row in rows {
+            writer.write_record(row)?;
+        }
         writer.flush()?;
         Ok(())
     }
 
     pub fn append_measurement(&self, measurement: &Measurement) -> Result<()> {
-        let date = DateTime::parse_from_rfc3339(&measurement.timestamp)
-            .map(|value| value.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
-        let path = self
-            .dir
-            .join(format!("measurements_{}.csv", date.format("%Y-%m-%d")));
-        self.append_csv(
-            path,
-            &[
-                "timestamp",
-                "target_id",
-                "target_name",
-                "host",
-                "kind",
-                "mode",
-                "success",
-                "latency_ms",
-                "message",
-            ],
-            &[
+        self.append_measurements(std::slice::from_ref(measurement))
+    }
+
+    /// Writes one monitoring cycle with a single file open per day.
+    pub fn append_measurements(&self, measurements: &[Measurement]) -> Result<()> {
+        let mut rows_by_day: Vec<(String, Vec<Vec<String>>)> = Vec::new();
+        for measurement in measurements {
+            let date = DateTime::parse_from_rfc3339(&measurement.timestamp)
+                .map(|value| value.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+            let day = date.format("%Y-%m-%d").to_string();
+            let row = vec![
                 measurement.timestamp.clone(),
                 measurement.target_id.clone(),
                 measurement.target_name.clone(),
@@ -88,8 +86,30 @@ impl Store {
                 measurement.success.to_string(),
                 format!("{:.3}", measurement.latency),
                 measurement.message.clone(),
-            ],
-        )
+            ];
+            match rows_by_day.iter_mut().find(|(existing, _)| *existing == day) {
+                Some((_, rows)) => rows.push(row),
+                None => rows_by_day.push((day, vec![row])),
+            }
+        }
+        for (day, rows) in rows_by_day {
+            self.append_csv_rows(
+                self.dir.join(format!("measurements_{day}.csv")),
+                &[
+                    "timestamp",
+                    "target_id",
+                    "target_name",
+                    "host",
+                    "kind",
+                    "mode",
+                    "success",
+                    "latency_ms",
+                    "message",
+                ],
+                &rows,
+            )?;
+        }
+        Ok(())
     }
 
     pub fn append_outage(&self, outage: &Outage) -> Result<()> {
@@ -463,6 +483,34 @@ mod tests {
         let _ = fs::remove_file(path);
 
         assert_eq!(delimiter, b';');
+    }
+
+    #[test]
+    fn measurements_from_one_cycle_share_a_file_and_header() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = env::temp_dir().join(format!("netwatcher-batch-{unique}"));
+        let store = Store::new_at(dir.clone());
+        let now = Utc::now();
+        let measurement = |id: &str| crate::models::Measurement {
+            timestamp: now.to_rfc3339(),
+            target_id: id.into(),
+            target_name: id.into(),
+            host: "1.1.1.1".into(),
+            kind: "internet".into(),
+            mode: "ping".into(),
+            success: true,
+            latency: 5.0,
+            message: "OK".into(),
+        };
+
+        store.append_measurements(&[measurement("a"), measurement("b")]).unwrap();
+        store.append_measurements(&[measurement("c")]).unwrap();
+        let text = fs::read_to_string(dir.join(format!("measurements_{}.csv", now.format("%Y-%m-%d")))).unwrap();
+        let read = store.read_measurements(now - Duration::minutes(1)).unwrap();
+        let _ = fs::remove_dir_all(dir);
+
+        assert_eq!(text.matches("timestamp,target_id").count(), 1);
+        assert_eq!(read.iter().map(|item| item.target_id.as_str()).collect::<Vec<_>>(), ["a", "b", "c"]);
     }
 
     #[test]

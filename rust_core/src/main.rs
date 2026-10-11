@@ -22,6 +22,10 @@ struct Request {
     days: Option<i64>,
     #[serde(default)]
     path: Option<String>,
+    #[serde(default)]
+    history_after: Option<i64>,
+    #[serde(default)]
+    history_epoch: Option<u64>,
 }
 
 fn response(data: Value) -> Value {
@@ -80,7 +84,13 @@ fn main() -> Result<()> {
             },
             "start" => response(serde_json::to_value(engine.start())?),
             "stop" => response(serde_json::to_value(engine.stop())?),
-            "snapshot" => response(serde_json::to_value(engine.snapshot())?),
+            "snapshot" => {
+                let snapshot = match (request.history_after, request.history_epoch) {
+                    (Some(after), Some(epoch)) => engine.snapshot_since(after, epoch),
+                    _ => engine.snapshot(),
+                };
+                response(serde_json::to_value(snapshot)?)
+            }
             "monitor_once" => response(serde_json::to_value(engine.monitor_once())?),
             "get_outages" => match engine.outage_history(request.days.unwrap_or(30)) {
                 Ok(items) => response(serde_json::to_value(items)?),

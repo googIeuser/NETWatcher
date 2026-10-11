@@ -199,6 +199,16 @@ class TargetStatus {
   final String message;
   final List<LatencySample> history;
 
+  TargetStatus copyWith({List<LatencySample>? history}) => TargetStatus(
+        target: target,
+        state: state,
+        latency: latency,
+        packetLoss: packetLoss,
+        jitter: jitter,
+        message: message,
+        history: history ?? this.history,
+      );
+
   factory TargetStatus.fromJson(Map<String, dynamic> json) => TargetStatus(
         target:
             TargetInfo.fromJson(json['target'] as Map<String, dynamic>? ?? {}),
@@ -249,7 +259,7 @@ class NetworkSnapshot {
     this.targets = const [],
     this.recentEvents = const [],
     this.updatedAt = '',
-    this.version = '5.1.4',
+    this.version = '5.1.5',
   });
 
   final bool monitoring;
@@ -265,6 +275,22 @@ class NetworkSnapshot {
   final List<NetworkEvent> recentEvents;
   final String updatedAt;
   final String version;
+
+  NetworkSnapshot copyWith({List<TargetStatus>? targets}) => NetworkSnapshot(
+        monitoring: monitoring,
+        connectionState: connectionState,
+        connectionLabel: connectionLabel,
+        qualityScore: qualityScore,
+        averageLatency: averageLatency,
+        packetLoss: packetLoss,
+        jitter: jitter,
+        samples: samples,
+        outages: outages,
+        targets: targets ?? this.targets,
+        recentEvents: recentEvents,
+        updatedAt: updatedAt,
+        version: version,
+      );
 
   factory NetworkSnapshot.fromJson(Map<String, dynamic> json) {
     return NetworkSnapshot(
@@ -287,7 +313,7 @@ class NetworkSnapshot {
           .map(NetworkEvent.fromJson)
           .toList(growable: false),
       updatedAt: json['updatedAt'] as String? ?? '',
-      version: json['version'] as String? ?? '5.1.4',
+      version: json['version'] as String? ?? '5.1.5',
     );
   }
 }

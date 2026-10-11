@@ -27,6 +27,7 @@ struct RuntimeState {
     pending_state: String,
     pending_count: u32,
     active_outage: Option<ActiveOutage>,
+    history_epoch: u64,
 }
 
 #[derive(Clone)]
@@ -78,11 +79,11 @@ impl Engine {
                 history
                     .entry(measurement.target_id.clone())
                     .or_default()
-                    .push(Sample {
-                        time: measurement.timestamp.clone(),
-                        latency: measurement.latency,
-                        success: measurement.success,
-                    });
+                    .push(Sample::new(
+                        measurement.timestamp.clone(),
+                        measurement.latency,
+                        measurement.success,
+                    ));
                 latest.insert(measurement.target_id.clone(), measurement);
             }
         }
@@ -133,6 +134,7 @@ impl Engine {
             .collect();
 
         let mut snapshot = Snapshot::default();
+        set_history_metadata(&mut snapshot, 1, config.graph_range_minutes);
         snapshot.outages = outage_count;
         snapshot.targets = initial_targets;
         if !online_latencies.is_empty() {
@@ -149,6 +151,7 @@ impl Engine {
                 .map(|outage| outage.category.clone())
                 .unwrap_or_default(),
             active_outage,
+            history_epoch: 1,
             ..RuntimeState::default()
         };
 
@@ -192,34 +195,38 @@ impl Engine {
         *self.config.write().expect("config lock poisoned") = config;
 
         let mut runtime = self.runtime.lock().expect("runtime lock poisoned");
-        let cutoff = (Utc::now() - chrono::Duration::minutes(range_minutes as i64)).to_rfc3339();
+        let cutoff_ms =
+            (Utc::now() - chrono::Duration::minutes(range_minutes as i64)).timestamp_millis();
         if let Some(measurements) = older_history {
             let mut history: HashMap<String, Vec<Sample>> = HashMap::new();
             for measurement in measurements {
                 history
                     .entry(measurement.target_id)
                     .or_default()
-                    .push(Sample {
-                        time: measurement.timestamp,
-                        latency: measurement.latency,
-                        success: measurement.success,
-                    });
+                    .push(Sample::new(
+                        measurement.timestamp,
+                        measurement.latency,
+                        measurement.success,
+                    ));
             }
             for (id, samples) in runtime.history.drain() {
                 history.entry(id).or_default().extend(samples);
             }
             for samples in history.values_mut() {
-                samples.sort_by(|a, b| a.time.cmp(&b.time));
+                samples.sort_by_key(|sample| sample.epoch_ms);
                 samples.dedup_by(|a, b| a.time == b.time);
-                samples.retain(|sample| sample.time.as_str() >= cutoff.as_str());
+                drop_before(samples, cutoff_ms);
             }
             runtime.history = history;
         } else {
             for samples in runtime.history.values_mut() {
-                samples.retain(|sample| sample.time.as_str() >= cutoff.as_str());
+                drop_before(samples, cutoff_ms);
             }
         }
+        runtime.history_epoch += 1;
+        let history_epoch = runtime.history_epoch;
         let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
+        set_history_metadata(&mut snapshot, history_epoch, range_minutes);
         for status in &mut snapshot.targets {
             status.history = runtime
                 .history
@@ -231,6 +238,26 @@ impl Engine {
 
     pub fn snapshot(&self) -> Snapshot {
         self.snapshot.read().expect("snapshot lock poisoned").clone()
+    }
+
+    /// Returns the snapshot with only the chart samples the client does not have yet.
+    /// `after_ms` is the newest sample time the client holds for `history_epoch`.
+    /// The bucket containing `after_ms` is resent because its sample can still change.
+    pub fn snapshot_since(&self, after_ms: i64, history_epoch: u64) -> Snapshot {
+        let mut snapshot = self.snapshot();
+        if snapshot.history_epoch != history_epoch {
+            return snapshot;
+        }
+        let bucket_ms = snapshot.history_bucket_seconds.max(1) * 1000;
+        let first_bucket = after_ms.div_euclid(bucket_ms);
+        for status in &mut snapshot.targets {
+            let first = status
+                .history
+                .partition_point(|sample| sample.epoch_ms.div_euclid(bucket_ms) < first_bucket);
+            status.history.drain(..first);
+        }
+        snapshot.history_delta = true;
+        snapshot
     }
 
     pub fn outage_history(&self, days: i64) -> anyhow::Result<Vec<Outage>> {
@@ -297,14 +324,17 @@ impl Engine {
         let engine = self.clone();
         let handle = thread::spawn(move || {
             while engine.running.load(Ordering::SeqCst) {
+                let cycle_started = Instant::now();
                 engine.monitor_once();
-                let interval = engine.config().interval_seconds.max(0.5);
-                let slices = (interval * 10.0).round() as u64;
-                for _ in 0..slices.max(1) {
-                    if !engine.running.load(Ordering::SeqCst) {
+                let interval = Duration::from_secs_f64(engine.config().interval_seconds.max(0.5));
+                // Measure from the start of the cycle so checks do not stretch the interval.
+                let next_cycle = cycle_started + interval;
+                while engine.running.load(Ordering::SeqCst) {
+                    let remaining = next_cycle.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
                         break;
                     }
-                    thread::sleep(Duration::from_millis(100));
+                    thread::sleep(remaining.min(Duration::from_millis(100)));
                 }
             }
         });
@@ -484,16 +514,17 @@ impl Engine {
     pub fn monitor_once(&self) -> Snapshot {
         let config = self.config();
         let client = Arc::clone(&self.http_client);
-        let mut statuses: Vec<_> = targets::all_targets(&config.custom_targets)
-            .into_iter()
-            .map(|target| check_target(target, config.timeout_ms, &client))
-            .collect();
+        let mut statuses = check_targets(
+            targets::all_targets(&config.custom_targets),
+            config.timeout_ms,
+            &client,
+        );
 
-        {
+        let history_epoch = {
             let mut runtime = self.runtime.lock().expect("runtime lock poisoned");
-            let history_cutoff =
-                Utc::now() - chrono::Duration::minutes(config.graph_range_minutes as i64);
-            let cutoff_str = history_cutoff.to_rfc3339();
+            let cutoff_ms = (Utc::now()
+                - chrono::Duration::minutes(config.graph_range_minutes as i64))
+            .timestamp_millis();
 
             for status in &mut statuses {
                 if status.state == "online" {
@@ -510,7 +541,7 @@ impl Engine {
                     .entry(status.target.id.clone())
                     .or_default();
                 target_history.extend(status.history.iter().cloned());
-                target_history.retain(|sample| sample.time.as_str() >= cutoff_str.as_str());
+                drop_before(target_history, cutoff_ms);
                 if target_history.len() > 50_000 {
                     let remove = target_history.len() - 50_000;
                     target_history.drain(0..remove);
@@ -518,10 +549,12 @@ impl Engine {
                 status.history =
                     history_for_range(target_history, config.graph_range_minutes);
             }
-        }
+            runtime.history_epoch
+        };
 
-        for status in &statuses {
-            let _ = self.store.append_measurement(&Measurement {
+        let measurements: Vec<Measurement> = statuses
+            .iter()
+            .map(|status| Measurement {
                 timestamp: status.last_check.clone(),
                 target_id: status.target.id.clone(),
                 target_name: status.target.name.clone(),
@@ -531,8 +564,9 @@ impl Engine {
                 success: status.state == "online",
                 latency: status.latency,
                 message: status.message.clone(),
-            });
-        }
+            })
+            .collect();
+        let _ = self.store.append_measurements(&measurements);
 
         let successes = statuses.iter().filter(|status| status.state == "online").count();
         let total = statuses.len();
@@ -576,6 +610,7 @@ impl Engine {
         snapshot.samples += total as u64;
         snapshot.targets = statuses;
         snapshot.updated_at = Utc::now().to_rfc3339();
+        set_history_metadata(&mut snapshot, history_epoch, config.graph_range_minutes);
         snapshot.clone()
     }
 }
@@ -586,29 +621,70 @@ impl Drop for Engine {
     }
 }
 
+const MAX_GRAPH_POINTS: i64 = 600;
+
+/// Width of one chart bucket. Buckets are aligned to the Unix epoch, so completed
+/// buckets never change and the UI can receive only the newest ones.
+fn bucket_seconds(range_minutes: u32) -> i64 {
+    let range_seconds = range_minutes.max(1) as i64 * 60;
+    ((range_seconds + MAX_GRAPH_POINTS - 1) / MAX_GRAPH_POINTS).max(1)
+}
+
+fn set_history_metadata(snapshot: &mut Snapshot, history_epoch: u64, range_minutes: u32) {
+    snapshot.history_epoch = history_epoch;
+    snapshot.history_bucket_seconds = bucket_seconds(range_minutes);
+    snapshot.history_cutoff_ms =
+        (Utc::now() - chrono::Duration::minutes(range_minutes as i64)).timestamp_millis();
+    snapshot.history_delta = false;
+}
+
+/// Removes samples older than `cutoff_ms` from a time-ordered history.
+fn drop_before(samples: &mut Vec<Sample>, cutoff_ms: i64) {
+    let first = samples.partition_point(|sample| sample.epoch_ms < cutoff_ms);
+    samples.drain(..first);
+}
+
+/// Keeps one sample per chart bucket: the latest failure in the bucket if there is one,
+/// otherwise the latest sample.
 fn history_for_range(samples: &[Sample], range_minutes: u32) -> Vec<Sample> {
-    let cutoff = Utc::now() - chrono::Duration::minutes(range_minutes as i64);
-    let cutoff_str = cutoff.to_rfc3339();
-    let first = samples.partition_point(|sample| sample.time.as_str() < cutoff_str.as_str());
-    let filtered = &samples[first..];
+    let cutoff_ms =
+        (Utc::now() - chrono::Duration::minutes(range_minutes as i64)).timestamp_millis();
+    let first = samples.partition_point(|sample| sample.epoch_ms < cutoff_ms);
+    let bucket_ms = bucket_seconds(range_minutes) * 1000;
 
-    const MAX_GRAPH_POINTS: usize = 600;
-    if filtered.len() <= MAX_GRAPH_POINTS {
-        return filtered.to_vec();
-    }
-
-    let step = (filtered.len() + MAX_GRAPH_POINTS - 1) / MAX_GRAPH_POINTS;
-    let mut downsampled: Vec<Sample> = filtered.iter().step_by(step).cloned().collect();
-    if let Some(last) = filtered.last() {
-        if downsampled
-            .last()
-            .map(|sample| sample.time.as_str())
-            != Some(last.time.as_str())
-        {
-            downsampled.push(last.clone());
+    let mut output: Vec<Sample> = Vec::new();
+    let mut current_bucket = None;
+    for sample in &samples[first..] {
+        let bucket = sample.epoch_ms.div_euclid(bucket_ms);
+        if current_bucket == Some(bucket) {
+            let last = output.last_mut().expect("bucket has a sample");
+            if sample.success <= last.success {
+                *last = sample.clone();
+            }
+        } else {
+            current_bucket = Some(bucket);
+            output.push(sample.clone());
         }
     }
-    downsampled
+    output
+}
+
+/// Checks every target at the same time, so failing targets do not delay each other.
+fn check_targets(
+    targets: Vec<Target>,
+    timeout_ms: u64,
+    http_client: &reqwest::blocking::Client,
+) -> Vec<TargetStatus> {
+    thread::scope(|scope| {
+        let checks: Vec<_> = targets
+            .into_iter()
+            .map(|target| scope.spawn(move || check_target(target, timeout_ms, http_client)))
+            .collect();
+        checks
+            .into_iter()
+            .map(|check| check.join().expect("target check panicked"))
+            .collect()
+    })
 }
 
 fn check_target(
@@ -631,11 +707,7 @@ fn check_target(
             jitter: 0.0,
             last_check: checked_at.clone(),
             message: "OK".into(),
-            history: vec![Sample {
-                time: checked_at,
-                latency,
-                success: true,
-            }],
+            history: vec![Sample::new(checked_at, latency, true)],
         },
         Err(error) => TargetStatus {
             target,
@@ -645,11 +717,7 @@ fn check_target(
             jitter: 0.0,
             last_check: checked_at.clone(),
             message: error.to_string(),
-            history: vec![Sample {
-                time: checked_at,
-                latency: 0.0,
-                success: false,
-            }],
+            history: vec![Sample::new(checked_at, 0.0, false)],
         },
     }
 }
@@ -698,7 +766,30 @@ fn check_ping(host: &str, timeout_ms: u64) -> io::Result<f64> {
     if !output.status.success() {
         return Err(io::Error::new(io::ErrorKind::TimedOut, "ping failed"));
     }
-    Ok(started.elapsed().as_secs_f64() * 1000.0)
+    let reported = parse_ping_time(&String::from_utf8_lossy(&output.stdout));
+    Ok(reported.unwrap_or_else(|| started.elapsed().as_secs_f64() * 1000.0))
+}
+
+/// Reads the round-trip time from ping output, such as `time=12ms`, `time<1ms`,
+/// `süre=12ms` or `time=12.3 ms`. Starting the ping process adds its own delay,
+/// so the reported time is more accurate than the elapsed time.
+fn parse_ping_time(output: &str) -> Option<f64> {
+    output.lines().find_map(|line| {
+        let bytes = line.as_bytes();
+        bytes.iter().enumerate().find_map(|(index, byte)| {
+            if *byte != b'=' && *byte != b'<' {
+                return None;
+            }
+            let rest = &line[index + 1..];
+            let number_length = rest
+                .find(|c: char| !(c.is_ascii_digit() || c == '.' || c == ','))
+                .unwrap_or(rest.len());
+            if number_length == 0 || !rest[number_length..].trim_start().starts_with("ms") {
+                return None;
+            }
+            rest[..number_length].replace(',', ".").parse::<f64>().ok()
+        })
+    })
 }
 
 #[cfg(test)]
@@ -753,6 +844,98 @@ mod tests {
         server.join().unwrap();
 
         assert!(result.is_ok(), "HTTP check kept the original client timeout: {result:?}");
+    }
+
+    fn http_target(id: &str, url: String) -> Target {
+        Target {
+            id: id.into(),
+            name: id.into(),
+            host: url,
+            kind: "internet".into(),
+            mode: "http".into(),
+            custom: true,
+        }
+    }
+
+    #[test]
+    fn targets_are_checked_at_the_same_time() {
+        let servers: Vec<_> = (0..3)
+            .map(|_| slow_http_server(Duration::from_millis(400)))
+            .collect();
+        let targets = servers
+            .iter()
+            .enumerate()
+            .map(|(index, (url, _))| http_target(&format!("slow-{index}"), url.clone()))
+            .collect();
+        let client = reqwest::blocking::Client::builder().no_proxy().build().unwrap();
+
+        let started = Instant::now();
+        let statuses = check_targets(targets, 2_000, &client);
+        let elapsed = started.elapsed();
+        for (_, server) in servers {
+            server.join().unwrap();
+        }
+
+        assert_eq!(
+            statuses.iter().map(|status| status.target.id.as_str()).collect::<Vec<_>>(),
+            ["slow-0", "slow-1", "slow-2"]
+        );
+        assert!(statuses.iter().all(|status| status.state == "online"));
+        assert!(elapsed < Duration::from_millis(1_000), "checks ran one after another: {elapsed:?}");
+    }
+
+    #[test]
+    fn ping_time_is_read_from_the_output() {
+        let windows = "Pinging 1.1.1.1 with 32 bytes of data:\r\nReply from 1.1.1.1: bytes=32 time=12ms TTL=57\r\n\r\n    Minimum = 12ms, Maximum = 12ms, Average = 12ms";
+        assert_eq!(parse_ping_time(windows), Some(12.0));
+        let turkish = "1.1.1.1 yanıtı: bayt=32 süre=7ms TTL=57";
+        assert_eq!(parse_ping_time(turkish), Some(7.0));
+        assert_eq!(parse_ping_time("Reply from 192.168.1.1: bytes=32 time<1ms TTL=64"), Some(1.0));
+        let linux = "64 bytes from 1.1.1.1: icmp_seq=1 ttl=57 time=12.3 ms\n\nrtt min/avg/max/mdev = 12.3/12.3/12.3/0.000 ms";
+        assert_eq!(parse_ping_time(linux), Some(12.3));
+        assert_eq!(parse_ping_time("Request timed out."), None);
+    }
+
+    fn sample_at(epoch_ms: i64, success: bool) -> Sample {
+        let time = DateTime::from_timestamp_millis(epoch_ms).unwrap().to_rfc3339();
+        Sample::new(time, if success { 10.0 } else { 0.0 }, success)
+    }
+
+    #[test]
+    fn wide_chart_ranges_keep_one_sample_per_bucket() {
+        let now = Utc::now().timestamp_millis();
+        let samples: Vec<_> = (0..43_200)
+            .map(|index| sample_at(now - (43_200 - index) * 2_000, index != 42_000))
+            .collect();
+
+        let history = history_for_range(&samples, 24 * 60);
+
+        assert!(history.len() <= 601, "too many chart points: {}", history.len());
+        assert!(history.iter().any(|sample| !sample.success), "failure was hidden by bucketing");
+        assert_eq!(history.last().unwrap().time, samples.last().unwrap().time);
+    }
+
+    #[test]
+    fn snapshot_since_sends_only_new_chart_buckets() {
+        let engine = Engine::new(Config::default());
+        let now = Utc::now().timestamp_millis();
+        let history: Vec<_> = (0..10).map(|index| sample_at(now - (10 - index) * 2_000, true)).collect();
+        let epoch = {
+            let mut snapshot = engine.snapshot.write().unwrap();
+            let mut status = snapshot.targets[0].clone();
+            status.history = history.clone();
+            snapshot.targets = vec![status];
+            snapshot.history_epoch
+        };
+
+        let delta = engine.snapshot_since(history[7].epoch_ms, epoch);
+        assert!(delta.history_delta);
+        assert_eq!(delta.targets[0].history.len(), 3);
+        assert_eq!(delta.targets[0].history[0].time, history[7].time);
+
+        let full = engine.snapshot_since(history[7].epoch_ms, epoch + 1);
+        assert!(!full.history_delta);
+        assert_eq!(full.targets[0].history.len(), 10);
     }
 
     #[test]

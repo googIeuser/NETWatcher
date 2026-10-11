@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.1.5 - 2026-10-11
+
+- Check all targets at the same time, so outages are confirmed within one timeout instead of waiting for each failing target in turn.
+- Read ping latency from the ping output instead of timing the ping process.
+- Send only new chart points to the interface on each refresh, and keep failures visible when long chart ranges are condensed.
+- Keep a steady monitoring interval regardless of how long checks take.
+- Write each monitoring cycle's measurements to the log in a single file operation.
+
 ## 5.1.4 - 2026-09-30
 
 - Restore the solid interface after the glass experiment.

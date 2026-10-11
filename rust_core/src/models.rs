@@ -120,6 +120,22 @@ pub struct Sample {
     pub time: String,
     pub latency: f64,
     pub success: bool,
+    #[serde(skip)]
+    pub epoch_ms: i64,
+}
+
+impl Sample {
+    pub fn new(time: String, latency: f64, success: bool) -> Self {
+        let epoch_ms = chrono::DateTime::parse_from_rfc3339(&time)
+            .map(|value| value.timestamp_millis())
+            .unwrap_or_default();
+        Self {
+            time,
+            latency,
+            success,
+            epoch_ms,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,7 +147,7 @@ pub struct Event {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct Snapshot {
     pub monitoring: bool,
     pub connection_state: String,
@@ -146,6 +162,10 @@ pub struct Snapshot {
     pub recent_events: Vec<Event>,
     pub updated_at: String,
     pub version: String,
+    pub history_epoch: u64,
+    pub history_bucket_seconds: i64,
+    pub history_cutoff_ms: i64,
+    pub history_delta: bool,
 }
 
 impl Default for Snapshot {
@@ -164,6 +184,10 @@ impl Default for Snapshot {
             recent_events: Vec::new(),
             updated_at: chrono::Utc::now().to_rfc3339(),
             version: env!("CARGO_PKG_VERSION").into(),
+            history_epoch: 1,
+            history_bucket_seconds: 1,
+            history_cutoff_ms: 0,
+            history_delta: false,
         }
     }
 }
