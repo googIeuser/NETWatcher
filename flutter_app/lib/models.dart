@@ -259,7 +259,7 @@ class NetworkSnapshot {
     this.targets = const [],
     this.recentEvents = const [],
     this.updatedAt = '',
-    this.version = '5.1.5',
+    this.version = '5.1.6',
   });
 
   final bool monitoring;
@@ -276,7 +276,11 @@ class NetworkSnapshot {
   final String updatedAt;
   final String version;
 
-  NetworkSnapshot copyWith({List<TargetStatus>? targets}) => NetworkSnapshot(
+  NetworkSnapshot copyWith({
+    List<TargetStatus>? targets,
+    List<NetworkEvent>? recentEvents,
+  }) =>
+      NetworkSnapshot(
         monitoring: monitoring,
         connectionState: connectionState,
         connectionLabel: connectionLabel,
@@ -287,7 +291,7 @@ class NetworkSnapshot {
         samples: samples,
         outages: outages,
         targets: targets ?? this.targets,
-        recentEvents: recentEvents,
+        recentEvents: recentEvents ?? this.recentEvents,
         updatedAt: updatedAt,
         version: version,
       );
@@ -313,7 +317,7 @@ class NetworkSnapshot {
           .map(NetworkEvent.fromJson)
           .toList(growable: false),
       updatedAt: json['updatedAt'] as String? ?? '',
-      version: json['version'] as String? ?? '5.1.5',
+      version: json['version'] as String? ?? '5.1.6',
     );
   }
 }

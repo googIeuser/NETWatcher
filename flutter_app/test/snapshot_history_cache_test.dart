@@ -88,4 +88,44 @@ void main() {
     expect(snapshot.targets.single.history, hasLength(1));
     expect(cache.requestFields()['history_epoch'], 2);
   });
+
+  Map<String, dynamic> event(String message) =>
+      {'time': message, 'level': 'info', 'category': 'monitor', 'message': message};
+
+  test('adds new events in front of the cached events', () {
+    final cache = SnapshotHistoryCache();
+    cache.apply({
+      'eventCount': 2,
+      'recentEvents': [event('second'), event('first')],
+    });
+    expect(cache.requestFields()['events_seen'], 2);
+
+    final snapshot = cache.apply({
+      'eventCount': 3,
+      'eventsDelta': true,
+      'recentEvents': [event('third')],
+    });
+
+    expect(snapshot.recentEvents.map((event) => event.message),
+        ['third', 'second', 'first']);
+    expect(cache.requestFields()['events_seen'], 3);
+  });
+
+  test('keeps at most fifty events', () {
+    final cache = SnapshotHistoryCache();
+    cache.apply({
+      'eventCount': 50,
+      'recentEvents': [for (var i = 50; i > 0; i--) event('event $i')],
+    });
+
+    final snapshot = cache.apply({
+      'eventCount': 51,
+      'eventsDelta': true,
+      'recentEvents': [event('event 51')],
+    });
+
+    expect(snapshot.recentEvents, hasLength(50));
+    expect(snapshot.recentEvents.first.message, 'event 51');
+    expect(snapshot.recentEvents.last.message, 'event 2');
+  });
 }

@@ -195,13 +195,15 @@ impl Store {
         }
     }
 
-    fn rows(path: &Path) -> Result<(HashMap<String, usize>, Vec<StringRecord>)> {
+    /// Opens a CSV file and returns its column indexes. Rows are read one at a time,
+    /// so large daily logs are not loaded into memory at once.
+    fn rows(path: &Path) -> Result<(HashMap<String, usize>, csv::Reader<fs::File>)> {
         let mut reader = ReaderBuilder::new()
             .delimiter(Self::delimiter(path))
             .flexible(true)
             .from_path(path)?;
-        let headers = reader.headers()?.clone();
-        let indexes = headers
+        let indexes = reader
+            .headers()?
             .iter()
             .enumerate()
             .map(|(index, value)| {
@@ -211,8 +213,7 @@ impl Store {
                 )
             })
             .collect();
-        let rows = reader.records().filter_map(|record| record.ok()).collect();
-        Ok((indexes, rows))
+        Ok((indexes, reader))
     }
 
     fn cell<'a>(row: &'a StringRecord, indexes: &HashMap<String, usize>, key: &str) -> &'a str {
@@ -275,12 +276,20 @@ impl Store {
                 if NaiveDate::parse_from_str(day, "%Y-%m-%d").is_ok_and(|date| date < since_day) {
                     continue;
                 }
+            } else if entry
+                .metadata()
+                .and_then(|meta| meta.modified())
+                .is_ok_and(|modified| DateTime::<Utc>::from(modified) < since)
+            {
+                // Legacy sample files have no date in their name. A file that was last
+                // written before `since` cannot contain newer rows.
+                continue;
             }
             let path = entry.path();
-            let (indexes, rows) = Self::rows(&path)
+            let (indexes, mut reader) = Self::rows(&path)
                 .with_context(|| format!("failed to read {}", path.display()))?;
             let current = indexes.contains_key("target_id");
-            for row in rows {
+            for row in reader.records().filter_map(|record| record.ok()) {
                 let timestamp = Self::cell(&row, &indexes, "timestamp");
                 let Some(parsed) = Self::parse_time(timestamp) else {
                     continue;
@@ -340,8 +349,15 @@ impl Store {
     }
 
     pub fn read_outages(&self, since: DateTime<Utc>) -> Result<Vec<Outage>> {
-        let _guard = self.lock.lock().expect("storage lock poisoned");
         let mut output = Vec::new();
+        self.for_each_outage(since, |outage| output.push(outage))?;
+        output.sort_by(|a, b| b.start.cmp(&a.start));
+        Ok(output)
+    }
+
+    /// Visits each distinct outage that ended at or after `since`, in file order.
+    pub fn for_each_outage(&self, since: DateTime<Utc>, mut visit: impl FnMut(Outage)) -> Result<()> {
+        let _guard = self.lock.lock().expect("storage lock poisoned");
         let mut seen = HashSet::new();
 
         for name in ["outages.csv", "outages_v3.csv", "outages_v4.csv"] {
@@ -349,8 +365,8 @@ impl Store {
             if !path.exists() {
                 continue;
             }
-            let (indexes, rows) = Self::rows(&path)?;
-            for row in rows {
+            let (indexes, mut reader) = Self::rows(&path)?;
+            for row in reader.records().filter_map(|record| record.ok()) {
                 let start_text = Self::cell(&row, &indexes, "start");
                 let end_text = Self::cell(&row, &indexes, "end");
                 let Some(start) = Self::parse_time(start_text) else {
@@ -399,7 +415,7 @@ impl Store {
                     continue;
                 }
 
-                output.push(Outage {
+                visit(Outage {
                     start: start.to_rfc3339(),
                     end: end_value,
                     category,
@@ -409,8 +425,7 @@ impl Store {
                 });
             }
         }
-        output.sort_by(|a, b| b.start.cmp(&a.start));
-        Ok(output)
+        Ok(())
     }
 
     pub fn csv_files(&self) -> Result<Vec<PathBuf>> {
@@ -511,6 +526,26 @@ mod tests {
 
         assert_eq!(text.matches("timestamp,target_id").count(), 1);
         assert_eq!(read.iter().map(|item| item.target_id.as_str()).collect::<Vec<_>>(), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn read_measurements_skips_legacy_files_last_written_before_the_range() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = env::temp_dir().join(format!("netwatcher-legacy-samples-{unique}"));
+        fs::create_dir_all(&dir).unwrap();
+        let old = dir.join("samples_old.csv");
+        fs::write(&old, b"\xff").unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&old)
+            .unwrap()
+            .set_modified(SystemTime::now() - std::time::Duration::from_secs(3 * 86_400))
+            .unwrap();
+
+        let result = Store::new_at(dir.clone()).read_measurements(Utc::now() - Duration::hours(24));
+        let _ = fs::remove_dir_all(dir);
+
+        assert!(result.unwrap().is_empty());
     }
 
     #[test]

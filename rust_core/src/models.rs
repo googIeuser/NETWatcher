@@ -115,26 +115,47 @@ pub struct TargetStatus {
     pub history: Vec<Sample>,
 }
 
+/// One chart point. Only the epoch time is kept in memory; it is sent as `time`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sample {
-    pub time: String,
+    #[serde(rename = "time", with = "rfc3339_millis")]
+    pub epoch_ms: i64,
     pub latency: f64,
     pub success: bool,
-    #[serde(skip)]
-    pub epoch_ms: i64,
 }
 
 impl Sample {
-    pub fn new(time: String, latency: f64, success: bool) -> Self {
-        let epoch_ms = chrono::DateTime::parse_from_rfc3339(&time)
-            .map(|value| value.timestamp_millis())
-            .unwrap_or_default();
+    pub fn new(epoch_ms: i64, latency: f64, success: bool) -> Self {
         Self {
-            time,
+            epoch_ms,
             latency,
             success,
-            epoch_ms,
         }
+    }
+
+    /// Creates a sample from an RFC 3339 time, such as a stored measurement timestamp.
+    pub fn at(time: &str, latency: f64, success: bool) -> Self {
+        Self::new(parse_epoch_ms(time), latency, success)
+    }
+}
+
+pub fn parse_epoch_ms(time: &str) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(time)
+        .map(|value| value.timestamp_millis())
+        .unwrap_or_default()
+}
+
+mod rfc3339_millis {
+    use chrono::{DateTime, SecondsFormat};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(epoch_ms: &i64, serializer: S) -> Result<S::Ok, S::Error> {
+        let time = DateTime::from_timestamp_millis(*epoch_ms).unwrap_or_default();
+        serializer.serialize_str(&time.to_rfc3339_opts(SecondsFormat::Millis, true))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<i64, D::Error> {
+        Ok(super::parse_epoch_ms(&String::deserialize(deserializer)?))
     }
 }
 
@@ -166,6 +187,52 @@ pub struct Snapshot {
     pub history_bucket_seconds: i64,
     pub history_cutoff_ms: i64,
     pub history_delta: bool,
+    /// Number of events recorded since the core started; the newest are in `recent_events`.
+    pub event_count: u64,
+    pub events_delta: bool,
+}
+
+impl Snapshot {
+    /// Copies the snapshot with replacement targets and events, without copying the
+    /// current chart histories and event list first.
+    pub fn clone_with(&self, targets: Vec<TargetStatus>, recent_events: Vec<Event>) -> Self {
+        Self {
+            monitoring: self.monitoring,
+            connection_state: self.connection_state.clone(),
+            connection_label: self.connection_label.clone(),
+            quality_score: self.quality_score,
+            average_latency: self.average_latency,
+            packet_loss: self.packet_loss,
+            jitter: self.jitter,
+            samples: self.samples,
+            outages: self.outages,
+            targets,
+            recent_events,
+            updated_at: self.updated_at.clone(),
+            version: self.version.clone(),
+            history_epoch: self.history_epoch,
+            history_bucket_seconds: self.history_bucket_seconds,
+            history_cutoff_ms: self.history_cutoff_ms,
+            history_delta: self.history_delta,
+            event_count: self.event_count,
+            events_delta: self.events_delta,
+        }
+    }
+}
+
+impl TargetStatus {
+    pub fn clone_with_history(&self, history: Vec<Sample>) -> Self {
+        Self {
+            target: self.target.clone(),
+            state: self.state.clone(),
+            latency: self.latency,
+            packet_loss: self.packet_loss,
+            jitter: self.jitter,
+            last_check: self.last_check.clone(),
+            message: self.message.clone(),
+            history,
+        }
+    }
 }
 
 impl Default for Snapshot {
@@ -188,6 +255,8 @@ impl Default for Snapshot {
             history_bucket_seconds: 1,
             history_cutoff_ms: 0,
             history_delta: false,
+            event_count: 0,
+            events_delta: false,
         }
     }
 }

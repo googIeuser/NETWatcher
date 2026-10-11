@@ -2,9 +2,9 @@
 
 A local Windows connection monitor with a Flutter desktop interface and a Rust monitoring core.
 
-**Current version:** `5.1.5`
+**Current version:** `5.1.6`
 
-[Download for Windows](https://github.com/googIeuser/NETWatcher/releases/latest) · [Changelog](CHANGELOG.md) · [Release notes](docs/releases/5.1.5.md)
+[Download for Windows](https://github.com/googIeuser/NETWatcher/releases/latest) · [Changelog](CHANGELOG.md) · [Release notes](docs/releases/5.1.6.md)
 
 ## Features
 
@@ -34,14 +34,14 @@ NetWatcher works locally, requires no account and does not upload measurements o
 
 Choose an installer or portable ZIP from the [latest release](https://github.com/googIeuser/NETWatcher/releases/latest).
 
-- **Installer:** run `NetWatcher_Setup_5.1.5.exe`.
-- **Portable:** extract the complete `NetWatcher_5.1.5_Windows_Portable.zip`, then run `netwatcher.exe`. Keep the extracted files together.
+- **Installer:** run `NetWatcher_Setup_5.1.6.exe`.
+- **Portable:** extract the complete `NetWatcher_5.1.6_Windows_Portable.zip`, then run `netwatcher.exe`. Keep the extracted files together.
 
 Both packages include a `.sha256` file. To verify the installer in PowerShell:
 
 ```powershell
-(Get-FileHash .\NetWatcher_Setup_5.1.5.exe -Algorithm SHA256).Hash.ToLower()
-Get-Content .\NetWatcher_Setup_5.1.5.exe.sha256
+(Get-FileHash .\NetWatcher_Setup_5.1.6.exe -Algorithm SHA256).Hash.ToLower()
+Get-Content .\NetWatcher_Setup_5.1.6.exe.sha256
 ```
 
 The two hashes should match. Unsigned builds may show a Windows SmartScreen unknown-publisher warning.

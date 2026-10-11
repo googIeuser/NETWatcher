@@ -30,16 +30,16 @@ The preparation script generates the Windows runner and applies NetWatcher's ico
 ## Build release packages
 
 ```powershell
-.\scripts\build-stable-release.ps1 -Version "5.1.5"
+.\scripts\build-stable-release.ps1 -Version "5.1.6"
 ```
 
 The Flutter and Rust package versions must match the requested release version. Output is written to `dist/`:
 
 ```text
-NetWatcher_Setup_5.1.5.exe
-NetWatcher_Setup_5.1.5.exe.sha256
-NetWatcher_5.1.5_Windows_Portable.zip
-NetWatcher_5.1.5_Windows_Portable.zip.sha256
+NetWatcher_Setup_5.1.6.exe
+NetWatcher_Setup_5.1.6.exe.sha256
+NetWatcher_5.1.6_Windows_Portable.zip
+NetWatcher_5.1.6_Windows_Portable.zip.sha256
 ```
 
 `scripts/generate-app-icon.py` regenerates the source icons and requires Pillow. `scripts/sign-release.ps1` signs release files using a maintainer's Authenticode certificate and the Windows SDK. Keep certificates and private keys out of the repository.

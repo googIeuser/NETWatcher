@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.1.6 - 2026-10-11
+
+- Ping IPv4 targets through the Windows ICMP service instead of starting a ping process for every check, and read the default gateway directly from Windows.
+- Count "destination unreachable" ping replies as failed checks, and measure ping times more precisely.
+- Update chart history one point at a time instead of rebuilding it on every check, and store chart points more compactly.
+- Send only new events to the interface on each refresh, and stop rebuilding the whole window when the snapshot changes.
+- Read log files row by row, and skip old legacy sample files that cannot contain measurements in the requested range.
+- Stop slow name lookups from delaying TCP and ping checks beyond the configured timeout.
+
 ## 5.1.5 - 2026-10-11
 
 - Check all targets at the same time, so outages are confirmed within one timeout instead of waiting for each failing target in turn.

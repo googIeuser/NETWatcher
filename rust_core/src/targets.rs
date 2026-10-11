@@ -87,9 +87,10 @@ pub fn all_targets(custom: &[String]) -> Vec<Target> {
 fn detect_default_gateway() -> Option<String> {
     #[cfg(windows)]
     {
+        use std::net::Ipv4Addr;
         use std::sync::{Mutex, OnceLock};
         use std::time::{Duration, Instant};
-        use std::process::Command;
+        use windows_sys::Win32::NetworkManagement::IpHelper::{GetBestRoute, MIB_IPFORWARDROW};
 
         static CACHE: OnceLock<Mutex<Option<(Instant, Option<String>)>>> = OnceLock::new();
         let mut cache = CACHE.get_or_init(|| Mutex::new(None)).lock().ok()?;
@@ -99,21 +100,14 @@ fn detect_default_gateway() -> Option<String> {
             }
         }
 
-        let gateway = Command::new("route")
-            .args(["print", "-4", "0.0.0.0"])
-            .output()
-            .ok()
-            .and_then(|output| {
-                let text = String::from_utf8_lossy(&output.stdout);
-                text.lines().find_map(|line| {
-                    let mut columns = line.split_whitespace();
-                    match (columns.next(), columns.next(), columns.next()) {
-                        (Some("0.0.0.0"), Some("0.0.0.0"), Some(gateway)) =>
-                            Some(gateway.to_owned()),
-                        _ => None,
-                    }
-                })
-            });
+        // Ask Windows for the best route to 0.0.0.0, which is the default route,
+        // instead of starting `route print`.
+        // SAFETY: MIB_IPFORWARDROW is plain data and GetBestRoute only writes into it.
+        let mut route: MIB_IPFORWARDROW = unsafe { std::mem::zeroed() };
+        let result = unsafe { GetBestRoute(0, 0, &mut route) };
+        let next_hop = route.dwForwardNextHop;
+        let gateway = (result == 0 && next_hop != 0)
+            .then(|| Ipv4Addr::from(next_hop.to_ne_bytes()).to_string());
         *cache = Some((Instant::now(), gateway.clone()));
         return gateway;
     }

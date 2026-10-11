@@ -24,9 +24,18 @@ class NetWatcherApp extends StatefulWidget {
 }
 
 class _NetWatcherAppState extends State<NetWatcherApp> with WindowListener {
+  static final _lightTheme = NetWatcherTheme.light();
+  static final _darkTheme = NetWatcherTheme.dark();
+
+  late String _theme;
+  late bool _loading;
+
   @override
   void initState() {
     super.initState();
+    _theme = widget.state.config.theme;
+    _loading = widget.state.loading;
+    widget.state.addListener(_appStateChanged);
     if (widget.tray != null) {
       windowManager.addListener(this);
     }
@@ -34,10 +43,23 @@ class _NetWatcherAppState extends State<NetWatcherApp> with WindowListener {
 
   @override
   void dispose() {
+    widget.state.removeListener(_appStateChanged);
     if (widget.tray != null) {
       windowManager.removeListener(this);
     }
     super.dispose();
+  }
+
+  /// Rebuilds the app only when the theme or loading state changes. Pages listen
+  /// to the state themselves, so snapshot refreshes do not rebuild MaterialApp.
+  void _appStateChanged() {
+    final theme = widget.state.config.theme;
+    final loading = widget.state.loading;
+    if (theme == _theme && loading == _loading) return;
+    setState(() {
+      _theme = theme;
+      _loading = loading;
+    });
   }
 
   @override
@@ -62,22 +84,17 @@ class _NetWatcherAppState extends State<NetWatcherApp> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.state,
-      builder: (context, _) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'NetWatcher',
-        theme: NetWatcherTheme.light(),
-        darkTheme: NetWatcherTheme.dark(),
-        themeMode: widget.state.config.theme == 'light'
-            ? ThemeMode.light
-            : ThemeMode.dark,
-        themeAnimationDuration: NetWatcherMotion.slow,
-        themeAnimationCurve: NetWatcherMotion.emphasizedCurve,
-        home: widget.state.loading
-            ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-            : NetworkConsoleShell(state: widget.state),
-      ),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'NetWatcher',
+      theme: _lightTheme,
+      darkTheme: _darkTheme,
+      themeMode: _theme == 'light' ? ThemeMode.light : ThemeMode.dark,
+      themeAnimationDuration: NetWatcherMotion.slow,
+      themeAnimationCurve: NetWatcherMotion.emphasizedCurve,
+      home: _loading
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : NetworkConsoleShell(state: widget.state),
     );
   }
 }

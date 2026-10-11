@@ -168,13 +168,19 @@ class ProcessCoreService implements CoreService {
   }
 }
 
-/// Keeps chart history between snapshot requests, so the core only has to send
-/// the chart buckets that are new since the previous request.
+/// Keeps chart history and recent events between snapshot requests, so the core
+/// only has to send the chart buckets and events that are new since the previous
+/// request.
 class SnapshotHistoryCache {
+  static const _maxEvents = 50;
+
   int? _epoch;
   final Map<String, List<LatencySample>> _history = {};
+  int? _eventCount;
+  List<NetworkEvent> _events = const [];
 
   Map<String, dynamic> requestFields() {
+    final fields = <String, dynamic>{};
     final epoch = _epoch;
     int? newest;
     for (final samples in _history.values) {
@@ -182,12 +188,29 @@ class SnapshotHistoryCache {
       final time = samples.last.time.millisecondsSinceEpoch;
       if (newest == null || time > newest) newest = time;
     }
-    if (epoch == null || newest == null) return const {};
-    return {'history_after': newest, 'history_epoch': epoch};
+    if (epoch != null && newest != null) {
+      fields['history_after'] = newest;
+      fields['history_epoch'] = epoch;
+    }
+    final eventCount = _eventCount;
+    if (eventCount != null) fields['events_seen'] = eventCount;
+    return fields;
   }
 
   NetworkSnapshot apply(Map<String, dynamic> data) {
-    final snapshot = NetworkSnapshot.fromJson(data);
+    var snapshot = NetworkSnapshot.fromJson(data);
+    final eventCount = (data['eventCount'] as num?)?.toInt();
+    final eventsDelta = data['eventsDelta'] == true && _eventCount != null;
+    if (eventsDelta) {
+      snapshot = snapshot.copyWith(
+        recentEvents: [...snapshot.recentEvents, ..._events]
+            .take(_maxEvents)
+            .toList(growable: false),
+      );
+    }
+    _eventCount = eventCount;
+    _events = snapshot.recentEvents;
+
     final epoch = (data['historyEpoch'] as num?)?.toInt();
     final isDelta =
         data['historyDelta'] == true && epoch != null && epoch == _epoch;

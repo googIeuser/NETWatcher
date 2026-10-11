@@ -42,7 +42,12 @@ class _NetworkConsoleShellState extends State<NetworkConsoleShell> {
       );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: widget.state,
+        builder: (context, _) => _buildShell(context),
+      );
+
+  Widget _buildShell(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final snapshot = widget.state.snapshot;
     final live = snapshot.monitoring && snapshot.samples > 0;

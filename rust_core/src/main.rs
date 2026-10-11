@@ -26,6 +26,8 @@ struct Request {
     history_after: Option<i64>,
     #[serde(default)]
     history_epoch: Option<u64>,
+    #[serde(default)]
+    events_seen: Option<u64>,
 }
 
 fn response(data: Value) -> Value {
@@ -85,10 +87,8 @@ fn main() -> Result<()> {
             "start" => response(serde_json::to_value(engine.start())?),
             "stop" => response(serde_json::to_value(engine.stop())?),
             "snapshot" => {
-                let snapshot = match (request.history_after, request.history_epoch) {
-                    (Some(after), Some(epoch)) => engine.snapshot_since(after, epoch),
-                    _ => engine.snapshot(),
-                };
+                let history = request.history_after.zip(request.history_epoch);
+                let snapshot = engine.snapshot_since(history, request.events_seen);
                 response(serde_json::to_value(snapshot)?)
             }
             "monitor_once" => response(serde_json::to_value(engine.monitor_once())?),

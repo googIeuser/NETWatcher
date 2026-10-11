@@ -1,11 +1,11 @@
 use std::{
     collections::HashMap,
     io,
-    net::{SocketAddr, TcpStream, ToSocketAddrs},
+    net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs},
     process::Command,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
+        mpsc, Arc, Mutex, RwLock,
     },
     thread,
     time::{Duration, Instant},
@@ -23,6 +23,8 @@ use crate::{
 struct RuntimeState {
     previous_latency: HashMap<String, f64>,
     history: HashMap<String, Vec<Sample>>,
+    /// Chart buckets for `history`, updated as new samples arrive.
+    charts: HashMap<String, Vec<Sample>>,
     confirmed_state: String,
     pending_state: String,
     pending_count: u32,
@@ -51,12 +53,17 @@ pub struct Engine {
 impl Engine {
     pub fn new(config: Config) -> Self {
         let store = Store::new();
-        let completed_outages = store
-            .read_outages(Utc::now() - chrono::Duration::days(36_500))
-            .unwrap_or_default();
-        let outage_count = completed_outages.len() as u64;
-        let active_outage = store.read_active_outage().ok().flatten().and_then(|saved| {
-            if completed_outages.iter().any(|item| item.start == saved.start) {
+        let saved_active = store.read_active_outage().ok().flatten();
+        let mut outage_count = 0u64;
+        let mut saved_active_completed = false;
+        let _ = store.for_each_outage(Utc::now() - chrono::Duration::days(36_500), |outage| {
+            outage_count += 1;
+            if saved_active.as_ref().is_some_and(|saved| saved.start == outage.start) {
+                saved_active_completed = true;
+            }
+        });
+        let active_outage = saved_active.and_then(|saved| {
+            if saved_active_completed {
                 let _ = store.clear_active_outage();
                 return None;
             }
@@ -79,19 +86,20 @@ impl Engine {
                 history
                     .entry(measurement.target_id.clone())
                     .or_default()
-                    .push(Sample::new(
-                        measurement.timestamp.clone(),
+                    .push(Sample::at(
+                        &measurement.timestamp,
                         measurement.latency,
                         measurement.success,
                     ));
                 latest.insert(measurement.target_id.clone(), measurement);
             }
         }
+        let charts = charts_for_range(&history, config.graph_range_minutes);
 
         let initial_targets: Vec<TargetStatus> = targets::all_targets(&config.custom_targets)
             .into_iter()
             .map(|target| {
-                let samples = history.get(&target.id).cloned().unwrap_or_default();
+                let samples = charts.get(&target.id).cloned().unwrap_or_default();
                 match latest.get(&target.id) {
                     Some(measurement) => TargetStatus {
                         target,
@@ -105,7 +113,7 @@ impl Engine {
                         jitter: 0.0,
                         last_check: measurement.timestamp.clone(),
                         message: measurement.message.clone(),
-                        history: history_for_range(&samples, config.graph_range_minutes),
+                        history: samples,
                     },
                     None => TargetStatus {
                         target,
@@ -146,6 +154,7 @@ impl Engine {
         let runtime = RuntimeState {
             previous_latency: previous_latencies,
             history,
+            charts,
             confirmed_state: active_outage
                 .as_ref()
                 .map(|outage| outage.category.clone())
@@ -203,8 +212,8 @@ impl Engine {
                 history
                     .entry(measurement.target_id)
                     .or_default()
-                    .push(Sample::new(
-                        measurement.timestamp,
+                    .push(Sample::at(
+                        &measurement.timestamp,
                         measurement.latency,
                         measurement.success,
                     ));
@@ -214,7 +223,7 @@ impl Engine {
             }
             for samples in history.values_mut() {
                 samples.sort_by_key(|sample| sample.epoch_ms);
-                samples.dedup_by(|a, b| a.time == b.time);
+                samples.dedup_by_key(|sample| sample.epoch_ms);
                 drop_before(samples, cutoff_ms);
             }
             runtime.history = history;
@@ -223,15 +232,16 @@ impl Engine {
                 drop_before(samples, cutoff_ms);
             }
         }
+        runtime.charts = charts_for_range(&runtime.history, range_minutes);
         runtime.history_epoch += 1;
         let history_epoch = runtime.history_epoch;
         let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
         set_history_metadata(&mut snapshot, history_epoch, range_minutes);
         for status in &mut snapshot.targets {
             status.history = runtime
-                .history
+                .charts
                 .get(&status.target.id)
-                .map(|samples| history_for_range(samples, range_minutes))
+                .cloned()
                 .unwrap_or_default();
         }
     }
@@ -240,23 +250,45 @@ impl Engine {
         self.snapshot.read().expect("snapshot lock poisoned").clone()
     }
 
-    /// Returns the snapshot with only the chart samples the client does not have yet.
-    /// `after_ms` is the newest sample time the client holds for `history_epoch`.
-    /// The bucket containing `after_ms` is resent because its sample can still change.
-    pub fn snapshot_since(&self, after_ms: i64, history_epoch: u64) -> Snapshot {
-        let mut snapshot = self.snapshot();
-        if snapshot.history_epoch != history_epoch {
-            return snapshot;
-        }
-        let bucket_ms = snapshot.history_bucket_seconds.max(1) * 1000;
-        let first_bucket = after_ms.div_euclid(bucket_ms);
-        for status in &mut snapshot.targets {
-            let first = status
-                .history
-                .partition_point(|sample| sample.epoch_ms.div_euclid(bucket_ms) < first_bucket);
-            status.history.drain(..first);
-        }
-        snapshot.history_delta = true;
+    /// Returns the snapshot with only the data the client does not have yet.
+    ///
+    /// `history` is the newest chart sample time the client holds and its history epoch.
+    /// The bucket containing that time is resent because its sample can still change.
+    /// `events_seen` is the event count of the client's last snapshot; only newer events
+    /// are sent when all of them are still in the recent list.
+    pub fn snapshot_since(&self, history: Option<(i64, u64)>, events_seen: Option<u64>) -> Snapshot {
+        let source = self.snapshot.read().expect("snapshot lock poisoned");
+        let history_after = history
+            .filter(|(_, epoch)| *epoch == source.history_epoch)
+            .map(|(after_ms, _)| after_ms);
+        let targets = match history_after {
+            Some(after_ms) => {
+                let bucket_ms = source.history_bucket_seconds.max(1) * 1000;
+                let first_bucket = after_ms.div_euclid(bucket_ms);
+                source
+                    .targets
+                    .iter()
+                    .map(|status| {
+                        let first = status.history.partition_point(|sample| {
+                            sample.epoch_ms.div_euclid(bucket_ms) < first_bucket
+                        });
+                        status.clone_with_history(status.history[first..].to_vec())
+                    })
+                    .collect()
+            }
+            None => source.targets.clone(),
+        };
+        let new_events = events_seen
+            .and_then(|seen| source.event_count.checked_sub(seen))
+            .map(|count| count as usize)
+            .filter(|count| *count <= source.recent_events.len());
+        let recent_events = match new_events {
+            Some(count) => source.recent_events[..count].to_vec(),
+            None => source.recent_events.clone(),
+        };
+        let mut snapshot = source.clone_with(targets, recent_events);
+        snapshot.history_delta = history_after.is_some();
+        snapshot.events_delta = new_events.is_some();
         snapshot
     }
 
@@ -308,6 +340,7 @@ impl Engine {
         let mut snapshot = self.snapshot.write().expect("snapshot lock poisoned");
         snapshot.recent_events.insert(0, event);
         snapshot.recent_events.truncate(50);
+        snapshot.event_count += 1;
     }
 
     pub fn start(&self) -> Snapshot {
@@ -325,7 +358,7 @@ impl Engine {
         let handle = thread::spawn(move || {
             while engine.running.load(Ordering::SeqCst) {
                 let cycle_started = Instant::now();
-                engine.monitor_once();
+                engine.run_cycle();
                 let interval = Duration::from_secs_f64(engine.config().interval_seconds.max(0.5));
                 // Measure from the start of the cycle so checks do not stretch the interval.
                 let next_cycle = cycle_started + interval;
@@ -512,6 +545,11 @@ impl Engine {
     }
 
     pub fn monitor_once(&self) -> Snapshot {
+        self.run_cycle();
+        self.snapshot()
+    }
+
+    fn run_cycle(&self) {
         let config = self.config();
         let client = Arc::clone(&self.http_client);
         let mut statuses = check_targets(
@@ -522,9 +560,11 @@ impl Engine {
 
         let history_epoch = {
             let mut runtime = self.runtime.lock().expect("runtime lock poisoned");
+            let runtime = &mut *runtime;
             let cutoff_ms = (Utc::now()
                 - chrono::Duration::minutes(config.graph_range_minutes as i64))
             .timestamp_millis();
+            let bucket_ms = bucket_seconds(config.graph_range_minutes) * 1000;
 
             for status in &mut statuses {
                 if status.state == "online" {
@@ -540,14 +580,16 @@ impl Engine {
                     .history
                     .entry(status.target.id.clone())
                     .or_default();
-                target_history.extend(status.history.iter().cloned());
+                let added = status.history.len();
+                target_history.append(&mut status.history);
                 drop_before(target_history, cutoff_ms);
                 if target_history.len() > 50_000 {
                     let remove = target_history.len() - 50_000;
                     target_history.drain(0..remove);
                 }
-                status.history =
-                    history_for_range(target_history, config.graph_range_minutes);
+                let chart = runtime.charts.entry(status.target.id.clone()).or_default();
+                update_chart(chart, target_history, added, bucket_ms);
+                status.history = chart.clone();
             }
             runtime.history_epoch
         };
@@ -611,7 +653,6 @@ impl Engine {
         snapshot.targets = statuses;
         snapshot.updated_at = Utc::now().to_rfc3339();
         set_history_metadata(&mut snapshot, history_epoch, config.graph_range_minutes);
-        snapshot.clone()
     }
 }
 
@@ -650,23 +691,59 @@ fn history_for_range(samples: &[Sample], range_minutes: u32) -> Vec<Sample> {
     let cutoff_ms =
         (Utc::now() - chrono::Duration::minutes(range_minutes as i64)).timestamp_millis();
     let first = samples.partition_point(|sample| sample.epoch_ms < cutoff_ms);
-    let bucket_ms = bucket_seconds(range_minutes) * 1000;
+    bucketed(&samples[first..], bucket_seconds(range_minutes) * 1000)
+}
 
-    let mut output: Vec<Sample> = Vec::new();
-    let mut current_bucket = None;
-    for sample in &samples[first..] {
-        let bucket = sample.epoch_ms.div_euclid(bucket_ms);
-        if current_bucket == Some(bucket) {
-            let last = output.last_mut().expect("bucket has a sample");
+fn charts_for_range(
+    history: &HashMap<String, Vec<Sample>>,
+    range_minutes: u32,
+) -> HashMap<String, Vec<Sample>> {
+    history
+        .iter()
+        .map(|(id, samples)| (id.clone(), history_for_range(samples, range_minutes)))
+        .collect()
+}
+
+fn bucketed(samples: &[Sample], bucket_ms: i64) -> Vec<Sample> {
+    let mut output = Vec::new();
+    for sample in samples {
+        push_bucketed(&mut output, sample, bucket_ms);
+    }
+    output
+}
+
+fn push_bucketed(chart: &mut Vec<Sample>, sample: &Sample, bucket_ms: i64) {
+    let bucket = sample.epoch_ms.div_euclid(bucket_ms);
+    match chart.last_mut() {
+        Some(last) if last.epoch_ms.div_euclid(bucket_ms) == bucket => {
             if sample.success <= last.success {
                 *last = sample.clone();
             }
-        } else {
-            current_bucket = Some(bucket);
-            output.push(sample.clone());
         }
+        _ => chart.push(sample.clone()),
     }
-    output
+}
+
+/// Brings `chart` up to date after `added` samples were appended to `samples` and old
+/// samples were removed from its start. Gives the same result as `bucketed(samples)`
+/// without rebuilding every bucket on each monitoring cycle.
+fn update_chart(chart: &mut Vec<Sample>, samples: &[Sample], added: usize, bucket_ms: i64) {
+    for sample in &samples[samples.len().saturating_sub(added)..] {
+        push_bucketed(chart, sample, bucket_ms);
+    }
+    let Some(oldest) = samples.first() else {
+        chart.clear();
+        return;
+    };
+    // Buckets before the oldest kept sample have left the range. The oldest bucket may
+    // have lost some of its samples, so it is rebuilt from the samples that remain.
+    let first_bucket = oldest.epoch_ms.div_euclid(bucket_ms);
+    let stale = chart.partition_point(|sample| sample.epoch_ms.div_euclid(bucket_ms) <= first_bucket);
+    let rebuilt = bucketed(
+        &samples[..samples.partition_point(|sample| sample.epoch_ms.div_euclid(bucket_ms) <= first_bucket)],
+        bucket_ms,
+    );
+    chart.splice(..stale, rebuilt);
 }
 
 /// Checks every target at the same time, so failing targets do not delay each other.
@@ -692,7 +769,9 @@ fn check_target(
     timeout_ms: u64,
     http_client: &reqwest::blocking::Client,
 ) -> TargetStatus {
-    let checked_at = Utc::now().to_rfc3339();
+    let now = Utc::now();
+    let checked_at = now.to_rfc3339();
+    let checked_ms = now.timestamp_millis();
     let result: anyhow::Result<f64> = match target.mode.as_str() {
         "tcp" => check_tcp(&target.host, timeout_ms).map_err(anyhow::Error::from),
         "http" | "https" => check_http(&target.host, timeout_ms, http_client),
@@ -705,9 +784,9 @@ fn check_target(
             latency,
             packet_loss: 0.0,
             jitter: 0.0,
-            last_check: checked_at.clone(),
+            last_check: checked_at,
             message: "OK".into(),
-            history: vec![Sample::new(checked_at, latency, true)],
+            history: vec![Sample::new(checked_ms, latency, true)],
         },
         Err(error) => TargetStatus {
             target,
@@ -715,24 +794,47 @@ fn check_target(
             latency: 0.0,
             packet_loss: 100.0,
             jitter: 0.0,
-            last_check: checked_at.clone(),
+            last_check: checked_at,
             message: error.to_string(),
-            history: vec![Sample::new(checked_at, 0.0, false)],
+            history: vec![Sample::new(checked_ms, 0.0, false)],
         },
     }
 }
 
 fn check_tcp(host: &str, timeout_ms: u64) -> io::Result<f64> {
-    let address = resolve_address(host)?;
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    let address = match host.parse::<SocketAddr>() {
+        Ok(address) => address,
+        Err(_) => resolve(host.to_owned(), Duration::from_millis(timeout_ms))?
+            .into_iter()
+            .next()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::AddrNotAvailable, "address not found"))?,
+    };
     let started = Instant::now();
-    TcpStream::connect_timeout(&address, Duration::from_millis(timeout_ms))?;
+    TcpStream::connect_timeout(&address, remaining(deadline))?;
     Ok(started.elapsed().as_secs_f64() * 1000.0)
 }
 
-fn resolve_address(host: &str) -> io::Result<SocketAddr> {
-    host.to_socket_addrs()?
-        .next()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::AddrNotAvailable, "address not found"))
+/// Time left until `deadline`, at least one millisecond so a check can still be attempted.
+fn remaining(deadline: Instant) -> Duration {
+    deadline
+        .saturating_duration_since(Instant::now())
+        .max(Duration::from_millis(1))
+}
+
+/// Resolves a host name on a helper thread, so a slow DNS server cannot hold the
+/// monitoring cycle past the check timeout.
+fn resolve<A: ToSocketAddrs + Send + 'static>(
+    address: A,
+    timeout: Duration,
+) -> io::Result<Vec<SocketAddr>> {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = sender.send(address.to_socket_addrs().map(Iterator::collect::<Vec<_>>));
+    });
+    receiver
+        .recv_timeout(timeout)
+        .unwrap_or_else(|_| Err(io::Error::new(io::ErrorKind::TimedOut, "name resolution timed out")))
 }
 
 fn check_http(
@@ -752,6 +854,28 @@ fn check_http(
 }
 
 fn check_ping(host: &str, timeout_ms: u64) -> io::Result<f64> {
+    #[cfg(windows)]
+    {
+        // IPv4 targets use the Windows ICMP API instead of starting a ping process.
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        let address = match host.parse::<IpAddr>() {
+            Ok(address) => Some(address),
+            Err(_) => resolve((host.to_owned(), 0), Duration::from_millis(timeout_ms))?
+                .into_iter()
+                .map(|address| address.ip())
+                .find(IpAddr::is_ipv4),
+        };
+        if let Some(IpAddr::V4(address)) = address {
+            if let Some(result) = icmp::echo(address, remaining(deadline)) {
+                return result;
+            }
+        }
+    }
+    ping_command(host, timeout_ms)
+}
+
+/// Pings with the system ping command. Used for IPv6 targets and outside Windows.
+fn ping_command(host: &str, timeout_ms: u64) -> io::Result<f64> {
     let started = Instant::now();
     let output = if cfg!(windows) {
         Command::new("ping")
@@ -768,6 +892,67 @@ fn check_ping(host: &str, timeout_ms: u64) -> io::Result<f64> {
     }
     let reported = parse_ping_time(&String::from_utf8_lossy(&output.stdout));
     Ok(reported.unwrap_or_else(|| started.elapsed().as_secs_f64() * 1000.0))
+}
+
+#[cfg(windows)]
+mod icmp {
+    use std::{
+        io,
+        mem::{size_of, size_of_val},
+        net::Ipv4Addr,
+        ptr,
+        time::{Duration, Instant},
+    };
+
+    use windows_sys::Win32::{
+        Foundation::INVALID_HANDLE_VALUE,
+        NetworkManagement::IpHelper::{
+            IcmpCloseHandle, IcmpCreateFile, IcmpSendEcho, ICMP_ECHO_REPLY,
+        },
+    };
+
+    const IP_SUCCESS: u32 = 0;
+    /// Same 32-byte payload as the Windows ping command.
+    const PAYLOAD: &[u8; 32] = b"abcdefghijklmnopqrstuvwabcdefghi";
+
+    /// Sends one ICMP echo request and returns the round-trip time in milliseconds.
+    /// Returns `None` when the ICMP API cannot be opened.
+    pub fn echo(address: Ipv4Addr, timeout: Duration) -> Option<io::Result<f64>> {
+        // SAFETY: IcmpCreateFile has no preconditions; the handle is closed below.
+        let handle = unsafe { IcmpCreateFile() };
+        if handle == INVALID_HANDLE_VALUE {
+            return None;
+        }
+        // Room for the reply, the echoed payload and an ICMP error message, aligned for
+        // ICMP_ECHO_REPLY.
+        let mut reply = [0u64; (size_of::<ICMP_ECHO_REPLY>() + PAYLOAD.len() + 8 + 64) / 8];
+        let started = Instant::now();
+        // SAFETY: the request and reply buffers are valid for the sizes passed.
+        let replies = unsafe {
+            IcmpSendEcho(
+                handle,
+                u32::from_ne_bytes(address.octets()),
+                PAYLOAD.as_ptr().cast(),
+                PAYLOAD.len() as u16,
+                ptr::null(),
+                reply.as_mut_ptr().cast(),
+                size_of_val(&reply) as u32,
+                timeout.as_millis().clamp(1, u32::MAX as u128) as u32,
+            )
+        };
+        let elapsed = started.elapsed();
+        // SAFETY: the handle came from IcmpCreateFile and is closed once.
+        unsafe { IcmpCloseHandle(handle) };
+        if replies == 0 {
+            return Some(Err(io::Error::new(io::ErrorKind::TimedOut, "ping failed")));
+        }
+        // SAFETY: a successful call writes an ICMP_ECHO_REPLY at the start of the buffer.
+        let reply = unsafe { &*(reply.as_ptr() as *const ICMP_ECHO_REPLY) };
+        if reply.Status != IP_SUCCESS {
+            return Some(Err(io::Error::other("ping failed")));
+        }
+        Some(Ok(elapsed.as_secs_f64() * 1000.0))
+    }
 }
 
 /// Reads the round-trip time from ping output, such as `time=12ms`, `time<1ms`,
@@ -897,8 +1082,93 @@ mod tests {
     }
 
     fn sample_at(epoch_ms: i64, success: bool) -> Sample {
-        let time = DateTime::from_timestamp_millis(epoch_ms).unwrap().to_rfc3339();
-        Sample::new(time, if success { 10.0 } else { 0.0 }, success)
+        Sample::new(epoch_ms, if success { 10.0 } else { 0.0 }, success)
+    }
+
+    #[test]
+    fn samples_are_sent_with_an_rfc3339_time() {
+        let value = serde_json::to_value(sample_at(1_700_000_000_123, true)).unwrap();
+        assert_eq!(value["time"], "2023-11-14T22:13:20.123Z");
+        let parsed: Sample = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed.epoch_ms, 1_700_000_000_123);
+    }
+
+    #[test]
+    fn incremental_chart_matches_a_full_rebuild() {
+        let bucket_ms = 6_000;
+        let window_ms = 60_000;
+        let mut samples = Vec::new();
+        let mut chart = Vec::new();
+        for index in 0..400i64 {
+            let now = 1_700_000_000_000 + index * 2_000;
+            samples.push(sample_at(now, index % 7 != 3));
+            drop_before(&mut samples, now - window_ms);
+            update_chart(&mut chart, &samples, 1, bucket_ms);
+            let expected = bucketed(&samples, bucket_ms);
+            let key = |chart: &[Sample]| {
+                chart.iter().map(|sample| (sample.epoch_ms, sample.success)).collect::<Vec<_>>()
+            };
+            assert_eq!(key(&chart), key(&expected), "chart differs after sample {index}");
+        }
+    }
+
+    #[test]
+    fn slow_name_resolution_stops_at_the_timeout() {
+        struct SlowAddress;
+        impl ToSocketAddrs for SlowAddress {
+            type Iter = std::vec::IntoIter<SocketAddr>;
+            fn to_socket_addrs(&self) -> io::Result<Self::Iter> {
+                thread::sleep(Duration::from_secs(2));
+                Ok(Vec::new().into_iter())
+            }
+        }
+
+        let started = Instant::now();
+        let result = resolve(SlowAddress, Duration::from_millis(100));
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn icmp_ping_reaches_loopback_without_a_ping_process() {
+        let latency = icmp::echo(std::net::Ipv4Addr::LOCALHOST, Duration::from_secs(1))
+            .expect("ICMP API is available")
+            .expect("loopback answers ping");
+        assert!(latency >= 0.0 && latency < 1_000.0);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn icmp_ping_fails_for_an_unreachable_address() {
+        let result = icmp::echo(std::net::Ipv4Addr::new(192, 0, 2, 1), Duration::from_millis(300))
+            .expect("ICMP API is available");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn snapshot_since_sends_only_new_events() {
+        let engine = Engine::new(Config::default());
+        engine.push_event("info", "monitor", "first".into());
+        let seen = engine.snapshot().event_count;
+        engine.push_event("warning", "outage", "second".into());
+        engine.push_event("success", "recovery", "third".into());
+
+        let delta = engine.snapshot_since(None, Some(seen));
+        assert!(delta.events_delta);
+        assert_eq!(
+            delta.recent_events.iter().map(|event| event.message.as_str()).collect::<Vec<_>>(),
+            ["third", "second"]
+        );
+
+        let full = engine.snapshot_since(None, None);
+        assert!(!full.events_delta);
+        assert_eq!(full.recent_events.len(), 3);
+
+        let restarted_client = engine.snapshot_since(None, Some(seen + 10));
+        assert!(!restarted_client.events_delta);
+        assert_eq!(restarted_client.recent_events.len(), 3);
     }
 
     #[test]
@@ -912,7 +1182,7 @@ mod tests {
 
         assert!(history.len() <= 601, "too many chart points: {}", history.len());
         assert!(history.iter().any(|sample| !sample.success), "failure was hidden by bucketing");
-        assert_eq!(history.last().unwrap().time, samples.last().unwrap().time);
+        assert_eq!(history.last().unwrap().epoch_ms, samples.last().unwrap().epoch_ms);
     }
 
     #[test]
@@ -928,12 +1198,12 @@ mod tests {
             snapshot.history_epoch
         };
 
-        let delta = engine.snapshot_since(history[7].epoch_ms, epoch);
+        let delta = engine.snapshot_since(Some((history[7].epoch_ms, epoch)), None);
         assert!(delta.history_delta);
         assert_eq!(delta.targets[0].history.len(), 3);
-        assert_eq!(delta.targets[0].history[0].time, history[7].time);
+        assert_eq!(delta.targets[0].history[0].epoch_ms, history[7].epoch_ms);
 
-        let full = engine.snapshot_since(history[7].epoch_ms, epoch + 1);
+        let full = engine.snapshot_since(Some((history[7].epoch_ms, epoch + 1)), None);
         assert!(!full.history_delta);
         assert_eq!(full.targets[0].history.len(), 10);
     }
