@@ -28,6 +28,8 @@ NetWatcher works locally, requires no account and does not upload measurements o
 | --- | --- |
 | ![HTML, ISP evidence and diagnostics reports](docs/screenshots/reports.png) | ![Custom target management](docs/screenshots/targets.png) |
 
+![Theme, monitoring, startup and notification settings](docs/screenshots/settings.png)
+
 ## Installation
 
 Choose an installer or portable ZIP from the [latest release](https://github.com/googIeuser/NETWatcher/releases/latest).
