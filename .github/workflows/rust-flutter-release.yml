@@ -201,6 +201,9 @@ jobs:
             throw "Could not check whether tag $tag exists."
           }
 
+          # git ls-remote reports a missing tag with exit code 2, which would otherwise fail this step.
+          exit 0
+
       - name: Publish GitHub stable release
         if: inputs.mode == 'stable-release'
         env:
