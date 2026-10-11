@@ -190,7 +190,7 @@ jobs:
               $tagCommit = ($tagLine -split '\s+')[0]
             }
 
-            if ($tagCommit.ToLowerInvariant() -ne "${env:GITHUB_SHA}".ToLowerInvariant()) {
+            if ($(git merge-base --is-ancestor $tagCommit "${env:GITHUB_SHA}"; $LASTEXITCODE) -ne 0) {
               throw "Tag $tag already exists on another commit: $tagCommit"
             }
 
@@ -235,7 +235,7 @@ jobs:
 
             gh release edit "${env:RELEASE_TAG}" `
               --repo "${env:GITHUB_REPOSITORY}" `
-              --title "NetWatcher ${env:RELEASE_VERSION}" `
+              --title "NETWatcher ${env:RELEASE_VERSION}" `
               --notes-file "${env:RELEASE_NOTES}" `
               --draft=false `
               --prerelease=false `
