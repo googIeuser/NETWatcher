@@ -16,6 +16,18 @@ A local Windows connection monitor with a Flutter desktop interface and a Rust m
 
 NetWatcher works locally, requires no account and does not upload measurements or log files. Read the [privacy policy](docs/PRIVACY.md).
 
+## Screenshots
+
+![NetWatcher overview with the network map](docs/screenshots/overview.png)
+
+| Statistics | Outage history |
+| --- | --- |
+| ![Per-target latency, packet loss and jitter](docs/screenshots/statistics.png) | ![Outage history with incident summary](docs/screenshots/incidents.png) |
+
+| Reports | Targets |
+| --- | --- |
+| ![HTML, ISP evidence and diagnostics reports](docs/screenshots/reports.png) | ![Custom target management](docs/screenshots/targets.png) |
+
 ## Installation
 
 Choose an installer or portable ZIP from the [latest release](https://github.com/googIeuser/NETWatcher/releases/latest).
