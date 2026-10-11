@@ -17,7 +17,7 @@ on:
       version:
         description: "Version without the v prefix"
         required: true
-        default: "5.1.4"
+        default: "5.1.5"
 
 permissions:
   contents: read
@@ -194,9 +194,9 @@ jobs:
               throw "Tag $tag already exists on another commit: $tagCommit"
             }
 
-            Write-Host "Tag $tag already points to this workflow commit."
+            Write-Host "Tag $tag already points to $tagCommit on main."
           } elseif ($lookupExit -eq 2) {
-            throw "Tag $tag must be created by the release maintainer before publication."
+            Write-Host "Tag $tag does not exist yet. It will be created with the release."
           } else {
             throw "Could not check whether tag $tag exists."
           }
@@ -204,7 +204,9 @@ jobs:
       - name: Publish GitHub stable release
         if: inputs.mode == 'stable-release'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # RELEASE_TOKEN is the maintainer's token, so new releases are published under the maintainer's account.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
         run: |
           $assets = @(
             Get-ChildItem .\dist -File |
@@ -245,5 +247,18 @@ jobs:
               throw "Existing stable release update failed."
             }
           } else {
-            throw "Draft release ${env:RELEASE_TAG} must be created by the release maintainer before publication."
+            if ("${env:HAS_RELEASE_TOKEN}" -ne "true") {
+              throw "Add the RELEASE_TOKEN repository secret, or create a draft release for ${env:RELEASE_TAG} before publication."
+            }
+
+            gh release create "${env:RELEASE_TAG}" @assets `
+              --repo "${env:GITHUB_REPOSITORY}" `
+              --target "${env:GITHUB_SHA}" `
+              --title "NETWatcher ${env:RELEASE_VERSION}" `
+              --notes-file "${env:RELEASE_NOTES}" `
+              --latest
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Stable release creation failed."
+            }
           }

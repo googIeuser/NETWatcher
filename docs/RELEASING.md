@@ -23,11 +23,9 @@ After the test package is approved:
 
 1. Add the current release notes at `docs/releases/x.y.z.md` and update `CHANGELOG.md`.
 2. Update the Flutter, Rust, installer and documentation versions, then commit and push to `main`.
-3. Create and push the annotated `vx.y.z` tag on that commit using the maintainer's Git identity.
-4. Create a draft GitHub Release for that tag, using `docs/releases/x.y.z.md` as its description.
-5. Open **Actions → NetWatcher Stable Release**, select **Run workflow** on `main`, and choose `stable-release` with the matching version.
-6. The workflow runs tests, builds and verifies the Windows packages, checks the existing tag, uploads assets to the draft and publishes it as the latest stable release.
+3. Open **Actions → NetWatcher Stable Release**, select **Run workflow** on `main`, and choose `stable-release` with the matching version.
+4. The workflow runs tests, builds and verifies the Windows packages, creates the `vx.y.z` tag on that commit if it does not exist, and publishes the release with the packages as the latest stable release.
 
-The workflow uses GitHub's built-in token. It requires the maintainer's tag and draft release to exist before publication.
+New releases are published with the `RELEASE_TOKEN` repository secret, so they appear under the maintainer's account. Create it once as a fine-grained personal access token for this repository with **Contents: Read and write** permission, and add it under **Settings → Secrets and variables → Actions**. Without the secret, the workflow can only publish a draft release that the maintainer created beforehand.
 
-Keep only the current release-note file in the repository. Previous release descriptions remain available in GitHub Releases, and the version history is preserved in `CHANGELOG.md`.
+Keep only the current release-note file in the repository. The version history is preserved in `CHANGELOG.md`.
