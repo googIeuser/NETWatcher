@@ -1,0 +1,27 @@
+name: Help and support
+description: Ask about NetWatcher installation or usage
+title: "[Help]: "
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please write in English. Start with the [support guide](https://github.com/googIeuser/NETWatcher/blob/main/docs/SUPPORT.md) and README.
+        Do not include credentials, private network addresses or hostnames, complete logs, or unedited diagnostics exports.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question and goal
+      description: What are you trying to do, and what is unclear or not working?
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Version and environment
+      description: NetWatcher version, Windows version, and installer, portable or source build, if relevant.
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What you tried
+      description: Include only relevant sanitized errors or screenshots.

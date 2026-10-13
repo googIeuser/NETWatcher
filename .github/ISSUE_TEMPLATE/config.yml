@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Private security report
+    url: https://github.com/googIeuser/NETWatcher/security/advisories/new
+    about: Report vulnerabilities privately rather than in public issues.
+  - name: Documentation and support
+    url: https://github.com/googIeuser/NETWatcher/blob/main/docs/SUPPORT.md
+    about: Find installation guidance, help forms, and reporting instructions.

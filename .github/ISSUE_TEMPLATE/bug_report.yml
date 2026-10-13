@@ -3,11 +3,17 @@ description: Report a reproducible NetWatcher problem
 title: "[Bug]: "
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Please write in English and check the README and existing issues first.
+        For vulnerabilities, use the [private security channel](https://github.com/googIeuser/NETWatcher/security/advisories/new).
+        Remove credentials, private hostnames, identifying IP addresses, and personal information from reports and screenshots. Do not upload unedited diagnostics ZIPs or complete logs.
   - type: input
     id: version
     attributes:
       label: NetWatcher version
-      placeholder: 2.2.2
+      placeholder: "5.1.6"
     validations:
       required: true
   - type: dropdown
@@ -15,6 +21,17 @@ body:
     attributes:
       label: Windows version
       options: [Windows 11, Windows 10, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation type
+      options:
+        - Windows installer
+        - Portable ZIP
+        - Built from source
+        - Other or unknown
     validations:
       required: true
   - type: textarea
@@ -31,7 +48,21 @@ body:
     validations:
       required: true
   - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the affected page or monitoring check type when relevant, without private target details.
+    validations:
+      required: true
+  - type: textarea
     id: logs
     attributes:
       label: Relevant logs or screenshots
-      description: Remove personal information before uploading.
+      description: Share only relevant sanitized excerpts. Inspect screenshots, reports and exports for identifying network details before uploading.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed credentials, private network information, and personal details.
+          required: true

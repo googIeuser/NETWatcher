@@ -3,6 +3,9 @@ description: Suggest a focused improvement
 title: "[Feature]: "
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: Please write in English, check existing proposals, and avoid sharing private network or account information.
   - type: textarea
     id: problem
     attributes:
@@ -15,3 +18,12 @@ body:
       label: Proposed behavior
     validations:
       required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: validation
+    attributes:
+      label: Success criteria and impact
+      description: How would we verify the improvement? Mention monitoring accuracy, privacy, performance, or compatibility implications when relevant.

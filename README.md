@@ -74,6 +74,12 @@ The app starts `netwatcher_core.exe` locally and communicates through JSON comma
 
 [Build from source](docs/BUILDING.md) · [Contributing](docs/CONTRIBUTING.md) · [Release process](docs/RELEASING.md) · [Security](docs/SECURITY.md) · [Code of conduct](docs/CODE_OF_CONDUCT.md)
 
+## Community and support
+
+Project documentation, issues, and pull requests use English. Start with the [support guide](docs/SUPPORT.md), or open a [bug report, feature request, or help request](https://github.com/googIeuser/NETWatcher/issues/new/choose). Please follow the [code of conduct](docs/CODE_OF_CONDUCT.md) and [contribution guide](docs/CONTRIBUTING.md).
+
+Report vulnerabilities through [GitHub's private security channel](https://github.com/googIeuser/NETWatcher/security/advisories/new), following the [security policy](docs/SECURITY.md). Remove identifying network information from reports and screenshots before sharing them publicly.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
